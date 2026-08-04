@@ -1,25 +1,4 @@
 {
-  "python.defaultInterpreterPath": "C:\\Users\\aa186095\\AppData\\Local\\miniconda3\\envs\\finance-tracker\\python.exe",
-  "terminal.integrated.defaultProfile.windows": "PowerShell (Conda)",
-  "terminal.integrated.profiles.windows": {
-    "PowerShell (Conda)": {
-      "source": "PowerShell",
-      "args": [
-        "-NoExit",
-        "-Command",
-        "conda activate finance-tracker"
-      ]
-    }
-  },
-  "python-envs.defaultEnvManager": "ms-python.python:conda",
-  "python-envs.defaultPackageManager": "ms-python.python:conda",
-  "python.testing.unittestArgs": [
-    "-v",
-    "-s",
-    "./tests",
-    "-p",
-    "test_*.py"
-  ],
-  "python.testing.pytestEnabled": false,
-  "python.testing.unittestEnabled": true
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }
