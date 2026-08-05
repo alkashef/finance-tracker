@@ -15,9 +15,13 @@ files, served as-is:
 | `styles.css` | All styling, as ordinary classes. |
 | `app.js` | Everything else: constants and seed data, formatting helpers, the state object, the OAuth + Sheets API layer, the view model, the screen views, the render loop, and the event handlers. |
 
-`app.js` is a single classic script wrapped in an IIFE — deliberately not an ES
-module, so `index.html` still works when opened directly from disk over `file://`
-(ES modules are blocked by CORS there).
+`app.js` is a single classic script wrapped in an IIFE. That was originally to keep
+`index.html` working when opened directly from disk over `file://`, but **that reason
+no longer holds**: OAuth requires an origin registered in Google Cloud Console and
+`file://` reports origin `null`, which cannot be registered, so the app has always
+needed a served origin. ES modules cost nothing here and are still no build step —
+splitting `app.js` into `js/*.js` modules is Part II Phase 9 of
+[plan.md](plan.md#decision--split-the-js-into-es-modules--decided).
 
 ## Rendering model
 
@@ -118,6 +122,35 @@ How the calls are made:
   serial-number path entirely; some legacy cells may still be typed as Date.
 - Spreadsheet ID is user-provided in Settings and saved to `localStorage`
   (`financeTracker.config`), alongside the OAuth Client ID.
+
+### Optional local defaults (`config/.env`)
+
+On a dev copy, `config/.env` can supply starting values for those two fields so they
+survive a cleared `localStorage`. `applyLocalDefaults()` runs at the end of `boot()`,
+after the first paint:
+
+- It `fetch`es `config/.env`, parses `KEY=value` lines (`#` comments, optional
+  surrounding quotes, whitespace trimmed) and reads exactly two keys —
+  `GOOGLE_OAUTH_CLIENT_ID` and `SPREADSHEET_ID`.
+- **It only fills empty fields.** If `restoreConfig()` already found a saved config,
+  the fetch is skipped entirely, so editing Settings in the browser is not undone on
+  reload. The corollary: once a config is saved, a changed `config/.env` has no effect
+  until `localStorage` is cleared.
+- **It prefills, it never connects.** Requesting a token outside a user gesture gets
+  the popup blocked, so the user still presses "Save & Connect". `state.fromLocalEnv`
+  drives a line on the Settings screen disclosing where the values came from.
+- Any failure — file absent, server refusing to serve dotfiles, unparseable content —
+  is swallowed. A missing `config/.env` is the normal case and the only case the
+  hosted site ever sees.
+
+The file is gitignored; only `config/.env.example`, carrying placeholders, is tracked.
+Neither value is a credential: the Client ID is public by design and the Spreadsheet ID
+identifies a document without granting access to it. Reading the Sheet still requires
+an OAuth token for an account it is shared with.
+
+`serve.ps1` serves dotfiles (unknown extensions fall back to
+`application/octet-stream`, which `fetch().text()` is happy with). Static servers that
+block dotfiles will simply 404, and the app falls back to the empty Settings form.
 
 ## How auth works
 

@@ -27,6 +27,8 @@ and anything else that writes to git history. Work on `main` unless told otherwi
   handlers. One classic script in an IIFE.
 - `serve.ps1` — no-dependency local static server (`npx serve .` also works).
 - `test/smoke.html` — drives every screen against a stubbed Sheets API.
+- `config/.env.example` — template for an untracked `config/.env` that prefills the
+  Client ID / Spreadsheet ID locally. The real file is gitignored and never deployed.
 - `README.md` — what the app is and how to run it.
 - `docs/functional-reqs.md` — business rules.
 - `docs/design.md` — architecture, Sheet tab/column layout, Sheets access, auth.
@@ -41,8 +43,17 @@ export step and no "do not edit" file.
   sample holdings, default balances, a fallback spreadsheet ID, or anything else that
   puts the user's figures into source. Missing tabs are created empty and stay empty.
   This is a hard rule — the repo is on GitHub.
-- **No build tooling.** No npm install to run it, no bundler, no transpile, no ES
-  modules — `app.js` stays a classic script.
+  The **one** carve-out: `config/.env` is an untracked, local-only file that prefills
+  the two connection fields (see `docs/design.md`). It works precisely because it is
+  gitignored — only `config/.env.example` with placeholders is committed. Don't extend
+  it to hold anything else, don't add a tracked fallback if it's missing, and never
+  commit a real one.
+- **No build tooling.** No npm install to run it, no bundler, no transpile. `app.js`
+  is currently one classic script; the reason for that (working from `file://`) is
+  void, since OAuth needs a registered origin and `file://` reports origin `null`.
+  Plain `<script type="module">` is therefore allowed — the browser resolves the
+  imports, so it is still no build step. Part II Phase 9 in `docs/plan.md` does that
+  split; until it lands, don't add modules piecemeal.
 - **No framework and no CDN dependencies** beyond the Google Identity Services script
   needed for OAuth. Don't reach for React, a template library, or a diffing layer;
   the render model in `docs/design.md` is deliberate.

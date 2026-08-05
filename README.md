@@ -73,6 +73,38 @@ persisted) and is re-requested silently as it nears expiry.
 Signing in happens on your first explicit action — "Save & Connect", or "Refresh from
 Sheet" on a later visit — never automatically on page load.
 
+### Skipping the retyping locally (optional)
+
+On a local copy you can keep those two values in a file instead of pasting them each
+time you clear site data:
+
+```sh
+cp config/.env.example config/.env      # then fill in your two values
+```
+
+```ini
+GOOGLE_OAUTH_CLIENT_ID=xxxxxxxxxxxx.apps.googleusercontent.com
+SPREADSHEET_ID=1AbC...
+```
+
+The app reads it at startup and **prefills the Settings fields** — that's all. It
+still never connects on its own (a token request without a click gets the OAuth popup
+blocked), and the Settings screen says where the values came from. Nothing else is
+read from the file; no financial data belongs in it.
+
+Two things to know:
+
+- **A config you've already saved wins.** These are defaults for empty fields only,
+  so editing Settings in the browser isn't undone on the next reload. To make a
+  changed `config/.env` take effect again, clear the site's `localStorage`.
+- **`config/.env` is gitignored and never deployed.** The hosted copy has no such
+  file — there you paste both values into Settings once, as above. Only
+  `config/.env.example`, with placeholders, is in the repo.
+
+Neither value is a secret: the Client ID is public by design, and the Spreadsheet ID
+names a document without granting access to it. They stay out of git because they
+identify your setup, not because they unlock anything.
+
 ### Setting up the Sheet
 
 Tabs are created automatically when missing, but they are never populated — you enter
@@ -93,7 +125,8 @@ matching; the app converts these on read, but Plain text avoids the issue entire
 
 Open <http://localhost:8723/test/smoke.html> with the server running. It drives every
 screen against a stubbed Sheets API and reports pass/fail — no network, no Google
-account needed. Add `?scenario=empty` to check the empty-Sheet path.
+account needed. Add `?scenario=empty` to check the empty-Sheet path, or `?env=1` to
+check the `config/.env` prefill path.
 
 ## Where things are documented
 

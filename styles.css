@@ -680,6 +680,20 @@ a.sb-btn {
   padding-left: 20px;
 }
 
+.settings-hint {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: -8px 0 14px 0;
+}
+
+.settings-hint code {
+  font-size: 11px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
 .settings-actions {
   display: flex;
   gap: 10px;

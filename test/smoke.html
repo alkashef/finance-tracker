@@ -21,7 +21,8 @@
 
    Run:  serve the repo (powershell -ExecutionPolicy Bypass -File serve.ps1)
          then open  http://localhost:8723/test/smoke.html
-         add  ?scenario=empty  to check the empty-Sheet path.
+         add  ?scenario=empty  to check the empty-Sheet path,
+         add  ?env=1           to check the config/.env prefill path.
 
    It never touches the network and never talks to Google. */
 
@@ -63,11 +64,23 @@ window.google = { accounts: { oauth2: { initTokenClient: function (cfg) {
   return { requestAccessToken: function () { cfg.callback({ access_token: 'stub', expires_in: 3600 }); } };
 } } } };
 
+/* config/.env is optional local convenience. `?env=1` exercises the present case;
+   without it the stub 404s, which is what the hosted site and CI always see.
+   The fixture deliberately includes a comment, padded spaces and a quoted value. */
+var LOCAL_ENV = new URLSearchParams(location.search).get('env') === '1'
+  ? '# local defaults\nGOOGLE_OAUTH_CLIENT_ID = env123.apps.googleusercontent.com\nSPREADSHEET_ID="env-sheet-id"\nUNUSED_KEY=ignored\n'
+  : null;
+
 /* Every write the app attempts is recorded so we can assert it never invents data. */
 window.__writes = [];
 window.fetch = function (url) {
   url = String(url);
   var body = {};
+  if (url.indexOf('config/.env') !== -1) {
+    return Promise.resolve(LOCAL_ENV === null
+      ? { ok: false, status: 404, text: function () { return Promise.resolve(''); } }
+      : { ok: true, status: 200, text: function () { return Promise.resolve(LOCAL_ENV); } });
+  }
   if (url.indexOf('values:batchGet') !== -1) {
     body = { valueRanges: DATA.map(function (v) { return { values: v }; }) };
   } else if (url.indexOf('fields=sheets.properties') !== -1) {
@@ -132,6 +145,29 @@ function clickIfPresent(sel) {
 
 /* Screens are checked by a selector that only exists once that screen rendered. */
 var steps = [
+  function () {
+    section('local config/.env defaults');
+    /* Scope to #main: document.body.textContent would also match this file's own
+       <script> source, which contains the very string being searched for. */
+    var hint = /Prefilled from your local/.test(document.getElementById('main').textContent);
+    if (LOCAL_ENV === null) {
+      /* The normal case, and the only one the hosted site ever sees. */
+      check('no .env leaves Client ID empty', el('[data-f="clientId"]').value, '');
+      check('no .env leaves Spreadsheet ID empty', el('[data-f="spreadsheetId"]').value, '');
+      check('no .env shows no prefill hint', hint, false);
+      note('re-run with ?env=1 to exercise the present case');
+      return;
+    }
+    check('client id prefilled, spaces trimmed', el('[data-f="clientId"]').value, 'env123.apps.googleusercontent.com');
+    check('spreadsheet id prefilled, quotes stripped', el('[data-f="spreadsheetId"]').value, 'env-sheet-id');
+    check('prefill is disclosed in the UI', hint, true);
+    check('prefill does not auto-connect', !!el('[data-act="saveAndConnect"]'), true);
+    check('prefill writes nothing', window.__writes.length, 0);
+    /* Clear them so the rest of the suite runs its normal path. */
+    typeInto('[data-f="clientId"]', '');
+    typeInto('[data-f="spreadsheetId"]', '');
+  },
+
   function () {
     section('connect');
     typeInto('[data-f="clientId"]', 'stub.apps.googleusercontent.com');

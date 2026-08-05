@@ -9,6 +9,10 @@ Status legend: **✅ done** · **⬜ not started** · **⚠️ done, but differe
 
 Part I shipped; it is kept below as the record of what was done and why.
 **Part II is the live plan — start there.**
+All three decisions are settled: ES modules for the JS (the app is hosted, so
+`file://` never applied), separate `<link>` tags for the CSS, and a `src/` +
+`scripts/` directory layout. Each phase carries its own test plan and a recommended
+model, so Part II is ready to start at Phase 5.
 
 ---
 
@@ -292,7 +296,9 @@ Part I's constraints carry over unchanged, plus the two rules added since:
 - **No data in the app.** No seed rows, no sample holdings, no fallback spreadsheet
   ID. Refactoring must not reintroduce fixtures into `app.js`.
 - **No build step.** No bundler, no transpile, nothing to `npm install` to run the
-  app. Any splitting must work with plain `<script>` / `<link>` tags.
+  app. Any splitting must work with plain `<script>` / `<link>` tags — including
+  `<script type="module">`, which the browser resolves itself and which therefore
+  still counts as no build step.
 
 A refactor is by definition behaviour-preserving: `test/smoke.html` must pass in both
 scenarios before and after every phase, and the UI must stay pixel-identical.
@@ -349,48 +355,265 @@ Measured, not estimated:
 - The JS is otherwise clean — no unreachable functions found. (`v.scenarioInputs`
   looks unused to a naive grep but is read through `lastVm`; keep it, comment it.)
 
-### Open decision — how to split the JS ⬜
+### Decision — split the JS into ES modules ✅ DECIDED
 
-**Answer this before Phase 9.** `app.js` is a single classic script because the
-original goal was for `index.html` to work from `file://`. That reason is now gone:
-OAuth cannot work from `file://` at all, so the app already requires a server. ES
-modules are back on the table.
+`app.js` is one classic script so that `index.html` would work when opened from disk
+over `file://`. **That rationale is void.** OAuth requires an origin registered in
+Google Cloud Console; `file://` reports origin `null`, which cannot be registered. The
+app has always needed a real origin — `serve.ps1` or `npx serve` locally, GitHub Pages
+in production — so `file://` compatibility protects nothing. Modules are unblocked.
 
-- **(a) ES modules** — `<script type="module">`, real `import`/`export`, no globals,
-  each file independently readable. Cost: the page can no longer be opened by
-  double-clicking even for a UI-only look, and `test/smoke.html` must load the entry
-  module the same way.
-- **(b) Several classic scripts sharing one namespace object** — still works from
-  `file://`, but reintroduces load-order coupling and a global.
-- **(c) Leave `app.js` whole** and only fix the smells inside it.
+**Phase 9 uses `<script type="module">` with real `import` / `export`.** This is still
+no build step: the browser resolves the graph itself. Nothing to install, nothing to
+compile, what is in the repo is still what runs.
 
-**Recommendation: (a).** The `file://` compatibility that (b) protects is already
-worthless for the real app, and (a) is the only option where module boundaries are
-enforced rather than merely conventional.
+What the decision pulls in:
 
-### Open decision — how to split the CSS ⬜
+- `index.html` — one tag change: `<script type="module" src="app.js"></script>`.
+- `test/smoke.html` — the same tag change and **nothing else**. The harness is
+  black-box: it installs the `window.fetch` / `window.google` / `window.confirm` stubs
+  from a classic inline script (which still runs first), then drives the app through
+  DOM events on `window.load` (which still fires after module evaluation, since module
+  scripts are deferred). It never calls an app function directly, so no coupling
+  breaks.
+- The IIFE wrapper in `app.js` goes away — module scope is already private.
+- **Import specifiers must be relative and carry the `.js` extension**
+  (`import { esc } from './js/format.js'`). There is no resolver: bare specifiers
+  (`from 'format'`) fail outright.
+- **MIME type becomes load-bearing.** A module served as anything other than a
+  JavaScript type is rejected, where a classic script would have run anyway. Already
+  verified — `serve.ps1` maps `.js` → `text/javascript; charset=utf-8`
+  ([serve.ps1:19](../serve.ps1#L19)) and GitHub Pages does the same. Nothing to change;
+  just don't break it.
+- **New failure mode — circular imports.** Two modules importing each other leaves one
+  binding `undefined` at evaluation time, and it fails at boot rather than at the call
+  site. The file split in Phase 9 is a DAG by design (`format` → `constants` → `state`
+  → `sheets` → `model` → `views` → `actions` → `app`); keep it one.
+- **Deployment changes shape.** Decision 4 was "push all three files together"; it is
+  now "push the whole tree". A file missed in a push used to break one feature — with
+  modules an unresolved import breaks the entire app, silently, before first paint.
+- **New capability worth using.** A test page can now `import` a function directly, so
+  Phases 7 and 8 get real unit tests instead of DOM-only assertions. This is the main
+  reason (a) beat (b), and the test plans below rely on it.
 
-- **(a) Several `<link>` tags** in `index.html`, in cascade order. Parallel fetches,
-  no build step, trivially debuggable.
-- **(b) One `styles.css` that `@import`s the rest.** One tag, but imports load
-  serially and block rendering.
+### Decision — split the CSS into separate `<link>` tags ✅ DECIDED
 
-**Recommendation: (a)**, with a comment in `index.html` noting the order is
-load-bearing.
+Four stylesheets, four `<link>` tags in `index.html`, in cascade order. Rejected: one
+`styles.css` that `@import`s the rest — `@import` loads serially and blocks rendering,
+and it buys only a single tag.
+
+Consequences to hold on to:
+
+- **The tag order in `index.html` is load-bearing**, and it is the only place the
+  cascade is recorded. `src/css/utilities.css` must come last so `.mb-*` beats a
+  component's own margin. Comment it in `index.html`; a reordered tag is a silent,
+  hard-to-attribute regression.
+- **`styles.css` itself goes away**, replaced by `src/css/*.css`. That is a 5th and 6th
+  file to remember at deploy time, on top of the module split — see the deployment
+  note above.
+- Within a file, source order still decides ties at equal specificity, exactly as
+  today. Splitting changes nothing about how the cascade works; it only spreads the
+  ordering across four files instead of one, which is why the order test in Phase 10
+  exists.
+
+### Decision — directory layout ✅ DECIDED
+
+Everything the app *is* moves under `src/`; everything else is already sorted into
+`docs/`, `config/` and `test/`. `index.html` stays at the root — not merely allowed,
+but required: GitHub Pages publishes this repo from its root, so `/index.html` is the
+served entry point.
+
+| Today | Target |
+| --- | --- |
+| `index.html` | `index.html` *(unchanged — Pages needs it here)* |
+| `app.js` | `src/app.js` — entry: render loop, delegation, boot |
+| — | `src/js/*.js` — the 7 modules from Phase 9 |
+| `styles.css` | `src/css/*.css` — the 4 stylesheets from Phase 10 |
+| `serve.ps1` | `scripts/serve.ps1` |
+| `docs/`, `config/`, `test/` | unchanged |
+
+```text
+index.html            served entry point; nothing but the shell
+src/
+  app.js              entry module
+  js/                 format, constants, state, sheets, model, views, actions
+  css/                base, components, screens, utilities
+scripts/serve.ps1     dev tooling — never deployed, never imported
+config/.env.example   template; the real .env is untracked
+docs/                 functional-reqs, design, plan
+test/smoke.html       the harness
+```
+
+**`scripts/`, not `utilities/`.** Two reasons beyond convention: Phase 10 creates
+`css/utilities.css`, and having `utilities/` mean *tooling* while `utilities.css`
+means *CSS helpers* is a name collision waiting to confuse. `tools/` would be equally
+fine. And **`src/js/` rather than `src/scripts/`**, so "scripts" means exactly one
+thing in this repo — dev tooling at the root.
+
+#### Edits the move forces
+
+Small, but each one silently breaks something if missed:
+
+1. **`serve.ps1` serves its own directory.** Line 13 is
+   `$root = Split-Path -Parent $MyInvocation.MyCommand.Path`. Left alone, moving the
+   file makes it serve `scripts/` instead of the repo — a server that starts fine and
+   404s everything. It must climb one level:
+   `$root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)`.
+2. **`index.html`** — `<script type="module" src="src/app.js">` and the four
+   `<link href="src/css/…">` tags.
+3. **`test/smoke.html`** — `../app.js` → `../src/app.js`, `../styles.css` → the four
+   `../src/css/…` tags.
+4. **`README.md`** — the run command becomes
+   `powershell -ExecutionPolicy Bypass -File scripts/serve.ps1`.
+5. **`docs/design.md` and `CLAUDE.md`** — both carry a file-layout table.
+
+#### One latent bug the move should fix
+
+`applyLocalDefaults()` calls `fetch('config/.env')`, which resolves **relative to the
+document**, not the script. From `/index.html` that is `/config/.env` — correct today.
+From `/test/smoke.html` it resolves to `/test/config/.env`, which does not exist; the
+harness only passes because its `fetch` stub matches on substring and never touches
+the disk.
+
+Phase 9 makes this properly fixable, because a module knows its own URL:
+
+```js
+fetch(new URL('../config/.env', import.meta.url))
+```
+
+From `src/app.js` that resolves to `/config/.env` regardless of which page loaded the
+module, or what subpath the site is served from. Do this as part of Phase 9 — it also
+makes the smoke harness exercise the real path instead of a stubbed approximation.
+
+#### Sequencing — don't move anything twice
+
+The move is nearly free if it rides along with work already planned:
+
+- **`scripts/serve.ps1` moves in Phase 5.** It is independent of the app, cannot break
+  a render, and only needs `serve.ps1` and the README touched. Grouping it with the
+  dead-code deletion keeps all the zero-risk housekeeping in one commit.
+- **Phase 9 writes JS straight to `src/js/`**, not to `js/` followed by a later move.
+- **Phase 10 writes CSS straight to `src/css/`.**
+
+So there is no separate "restructure" phase, and no file is relocated twice.
+
+#### Tests
+
+- ⬜ **Server root.** Start `scripts/serve.ps1` and request `/index.html`,
+  `/src/app.js`, `/config/.env` and `/test/smoke.html` — all 200. This is the check
+  that catches the `$root` mistake, and the one most likely to be skipped because the
+  server *appears* to start normally.
+- ⬜ **No stale paths.** Grep the tree for `"app.js"`, `"styles.css"` and `serve.ps1`
+  outside their new homes; every hit should be a doc that was meant to be updated.
+- ⬜ **`config/.env` resolves from both pages.** With a real `config/.env` present,
+  load `/index.html` *and* `/test/smoke.html` with the fetch stub disabled, and assert
+  the fields prefill in both. Before the `import.meta.url` fix this fails from
+  `/test/`, which is the point.
+- ⬜ **Deployed tree is complete.** After pushing, load the live site and confirm boot —
+  `src/` and `config/` must both have gone up. With modules a missing file is a blank
+  page, not a degraded one.
+- ⬜ Golden DOM snapshot unchanged, both scenarios — a move must change nothing.
+
+#### Known, accepted
+
+The hosted site fetches `config/.env` at boot and gets a 404, since the file is
+deliberately never deployed. It is one request, it is handled, and the fallback is the
+normal empty Settings form. Avoiding it would need a second request or a tracked
+marker file, both worse than one 404 in the network tab.
+
+**Run it with:** Haiku 4.5, thinking off, for the `scripts/` move in Phase 5 — it is
+four mechanical edits with an exact spec above. The `src/` moves are not separate work;
+they are the file paths Phases 9 and 10 write to.
+
+---
+
+### Picking a model per phase
+
+These phases differ enormously in risk. Phase 5 is a find-and-delete; Phase 6 can
+silently write a value into the wrong Sheet column and you would not notice until the
+numbers were wrong. Match the model to that, not to the line count.
+
+- Switch model with `/model`; **Fast mode** (`/fast`) keeps Opus's capability with
+  faster output and is a reasonable way to stay on Opus for the mechanical phases.
+- "Thinking" below means extended thinking — toggle it, or trigger it in the prompt
+  with *think* / *think hard* / *ultrathink*.
+- **Run one phase per session.** Every phase ends at a green test and a clean working
+  tree, which is the natural place to `/clear`. Phase 9 in particular should not be
+  split across a context compaction — it moves all 2,278 lines at once.
+
+| Phase | Model | Thinking | Why |
+| --- | --- | --- | --- |
+| Safety net | Sonnet 5 | on | New test code, clear spec, low blast radius |
+| 5 — housekeeping | Haiku 4.5 | off | 8 named classes, 1 rename, 1 file move — all enumerated |
+| 6 — CRUD descriptors | **Opus 5** | **hard** (*ultrathink*) | 10 entities × column orders held at once; wrong key = wrong column |
+| 7 — view model split | **Opus 5** | on | Cross-domain data dependencies, ordering is subtle |
+| 8 — view helpers | Sonnet 5 | on | Pattern work with a byte-exact pass/fail signal |
+| 9 — split `app.js` into `src/` | Sonnet 5 | on | Mechanical, but 2,278 lines is where a function gets dropped |
+| 10 — CSS tokens + `src/css/` | Sonnet 5 | on | Token judgment ("is *this* 13px the same 13px?") needs care |
+| 11 — re-verify | Sonnet 5 → Opus 5 | on | Sonnet runs the suite; escalate to Opus to triage any diff |
+
+Don't drop below Sonnet on 6–10. The failure mode of a cheap model here is not a
+crash, it is a plausible-looking refactor that changes a number.
+
+### Safety net — build this before Phase 6 ⬜
+
+`test/smoke.html` proves the app *runs*. It does not prove a refactor changed nothing,
+which is the only question Part II asks. Three additions, roughly 200 lines total, and
+Phases 6–10 all lean on them.
+
+1. ⬜ **Golden DOM snapshot** (`test/golden.html`). Drive every screen and both tabs,
+   serialize `#sidebar.innerHTML` + `#main.innerHTML` per screen, and compare against a
+   committed baseline JSON. Capture the baseline **before Phase 6** — that file is the
+   definition of "behaviour preserved". Diff output must name the screen and show the
+   first differing span, or it is useless at 700 lines of HTML.
+2. ⬜ **Write-payload capture.** `window.__writes` currently records only sheet *names*.
+   Extend the stub `fetch` to record `{ range, headers, rows }` for every PUT. This is
+   the one test that catches Phase 6's worst failure — a value written under the wrong
+   header — and nothing else will.
+3. ⬜ **CSS coverage check.** While walking every screen, collect every class name
+   present in the DOM; parse the class selectors out of `styles.css`; report *unused*
+   selectors and *undefined* classes. Proves Phase 5's deletions are safe, and stops
+   the next dead class from accumulating.
+
+**Run it with:** Sonnet 5, thinking on. Self-contained new code against an existing
+harness with a clear spec.
 
 ### Phases
 
-Each phase ends with `test/smoke.html` green in both scenarios plus a visual check of
-the affected screens. Do them in order — later phases assume earlier ones.
+Each phase ends with `test/smoke.html` green in **both** scenarios (`populated` and
+`?scenario=empty`), the golden snapshot clean, and a visual check of the affected
+screens. Do them in order — later phases assume earlier ones.
 
-#### Phase 5 — Delete dead code ⬜
+#### Phase 5 — Housekeeping: dead code and the `scripts/` move ⬜
 
-Smallest, moves nothing, safe to do first.
+All the zero-risk work in one commit. Nothing here can change a rendered figure.
 
 1. ⬜ Remove the 6 `.about-*` classes, `.mb-0` and `.mb-24` from `styles.css`.
 2. ⬜ Rename `.sb-about` → `.sb-footer-nav`, or fold it into an existing rule.
 3. ⬜ Comment `v.scenarioInputs` to record that it is read via `lastVm`, so the next
    reader doesn't delete it.
+4. ⬜ `git mv serve.ps1 scripts/serve.ps1`, and fix its `$root` to climb one extra
+   level — see "Edits the move forces" above. Update the run command in `README.md`
+   and `CLAUDE.md`.
+
+The `src/` half of the layout decision is *not* done here. Phases 9 and 10 write to
+`src/js/` and `src/css/` directly, so nothing gets moved twice.
+
+**Tests**
+
+- ⬜ CSS coverage check reports **0 unused and 0 undefined** classes afterwards. This is
+  the whole test — it independently re-derives the dead list rather than trusting it.
+- ⬜ Golden snapshot: expect **exactly one diff**, the `sb-about` → `sb-footer-nav`
+  class name in the sidebar. Review it, then re-baseline. Any second diff is a bug.
+- ⬜ Grep `app.js` and `index.html` for each deleted class name — must be zero hits
+  before deleting, not after.
+- ⬜ `scripts/serve.ps1` serves the **repo root**: `/index.html`, `/app.js`,
+  `/config/.env` and `/test/smoke.html` all return 200. A wrong `$root` still starts
+  cleanly and 404s everything, so this must be checked by request, not by eye.
+- ⬜ Smoke test green through the moved server, both scenarios.
+
+**Run it with:** Haiku 4.5, thinking off. Every edit is enumerated above, and the
+coverage check that needed judgment was already written in the safety net.
 
 #### Phase 6 — Collapse the CRUD duplication ⬜
 
@@ -413,6 +636,31 @@ make adding an entity a data change rather than four new handlers.
 Watch for: the two `confirm()` prompts (accounts, tags) must survive, and so must the
 ledger recompute that follows transaction and account writes.
 
+**Tests** — the heaviest set in Part II, because this is the phase that can corrupt data.
+
+- ⬜ **Round-trip per entity, all 10.** For each: add a row through the UI, edit it,
+  delete it, and assert the captured write payload — header order and cell values —
+  matches the pre-refactor baseline byte for byte. Run this after *each* entity is
+  converted, not after all ten.
+- ⬜ **Column-order guard.** Assert the written header row equals the constant header
+  array for that sheet. A descriptor with keys in the wrong order still produces
+  well-formed output; only this catches it.
+- ⬜ **Confirm prompts.** Stub `window.confirm` to count calls: exactly one for account
+  delete, one for tag delete, **zero** for the other eight.
+- ⬜ **Ledger recompute.** After a transaction write and after an account write, assert
+  the affected per-account ledger tabs appear in the write list. Easy to lose when the
+  bespoke handler becomes generic.
+- ⬜ **The 6 field exceptions, individually.** `txAmount` inserts thousands separators
+  and keeps the caret at the end; `pfBalance` likewise; each of the four upper-casing
+  fields upper-cases. These are precisely the entries that must *not* be generated.
+- ⬜ **Empty scenario.** Add the first row of an entity into an empty Sheet — the path
+  where `toForm` gets nothing to work with.
+- ⬜ Golden snapshot clean.
+
+**Run it with:** Opus 5, thinking hard (*ultrathink*), **one entity per message**. Ten
+entities × four handlers × exact column orders is more state than is worth holding in
+one turn, and the failure is silent. This is where to spend the budget.
+
 #### Phase 7 — Break up `buildViewModel()` ⬜
 
 1. ⬜ Split into one builder per domain — `ledgerModel`, `transactionsModel`,
@@ -425,6 +673,26 @@ ledger recompute that follows transaction and account writes.
    model rebuilds on every keystroke today and is fast enough, so this is a tidiness
    argument, not a performance one. Don't add caching complexity for it.
 
+**Tests**
+
+- ⬜ **View-model golden.** Freeze a `state` fixture, `JSON.stringify(buildViewModel())`,
+  compare to a baseline captured before the split. Deeper than the DOM snapshot: it
+  catches a value that is wrong but renders to the same string.
+- ⬜ **Arithmetic against the spec, not the baseline.** With gold, certificates, stock
+  and provident fund all non-zero, assert total savings equals the formula in
+  [functional-reqs.md](functional-reqs.md#dashboard-totals) — EGP + USD + EUR converted,
+  unvested stock excluded. A snapshot happily preserves a pre-existing bug; this
+  doesn't.
+- ⬜ **Ordering / purity.** Call `buildViewModel()` twice on the same state and assert
+  identical output. Catches a builder that mutates a shared intermediate the next
+  builder reads.
+- ⬜ **Empty-state per builder.** Each builder against an empty Sheet — no rows, no
+  rates, no stock meta. Division-by-zero and `undefined` land here.
+- ⬜ Golden DOM snapshot clean; smoke green in both scenarios.
+
+**Run it with:** Opus 5, thinking on. 399 lines is the easy part; the dashboard's
+dependency on three other domains is the part a weaker model gets subtly wrong.
+
 #### Phase 8 — De-duplicate the view layer ⬜
 
 1. ⬜ Add `tabBar(screen, activeTab, teal)`; replace all 5 copies.
@@ -436,22 +704,71 @@ ledger recompute that follows transaction and account writes.
    more than it saves.
 4. ⬜ Fold the repeated gain-colour ternary into one `gainClass(n)` helper.
 
+**Tests**
+
+- ⬜ **Byte-identical golden snapshot.** The purest case in Part II: a helper that emits
+  the same HTML as the longhand it replaced produces a zero-byte diff. Do not
+  re-baseline this phase — a diff here means the helper is wrong, including whitespace
+  differences that could change inline-element spacing.
+- ⬜ **Helper unit tests** (now possible via `import`): `tabBar` marks the right tab
+  active for each of the 5 screens; `statCard` emits each of the 10 colour classes;
+  `gainClass` at positive, negative and **exactly zero** — the boundary the ternary
+  hides.
+- ⬜ **Escaping, explicitly.** Feed `<script>alert(1)</script>` and `" onmouseover="x`
+  through `statCard`, `dataTable` and `tabBar`; assert the output contains no raw `<`
+  or unescaped quote. Escaping is the only defence between Sheet data and injection,
+  and centralizing markup is exactly when an `esc()` gets dropped.
+- ⬜ **`dataTable` degenerate cases:** zero rows, one row, a row with no actions.
+
+**Run it with:** Sonnet 5, thinking on. Repetitive extraction with an unambiguous
+pass/fail signal — the snapshot tells you immediately, so a stronger model buys little.
+
 #### Phase 9 — Split `app.js` ⬜
 
-Depends on the ES-modules decision above. Target ~8 files, none over ~400 lines:
+Now settled: ES modules, written straight to their final home under `src/` (see both
+decisions above). Target ~8 files, none over ~400 lines:
 
 | File | Contents | Rough size |
 | --- | --- | --- |
-| `js/format.js` | `esc`, `fmtMoney`, `fmtEGP`, `fmtEUR`, `signed`, `formatAmountDisplay`, `sheetsFmtDate` | ~70 |
-| `js/constants.js` | header arrays, tag constants, entity descriptors from Phase 6 | ~90 |
-| `js/state.js` | the `state` object plus `set` / `setForm` / `toggle` | ~110 |
-| `js/sheets.js` | OAuth and every Sheets API call | ~270 |
-| `js/model.js` | `computeLedger` plus the per-domain builders from Phase 7 | ~420 |
-| `js/views.js` | view helpers and screen views | ~700 |
-| `js/actions.js` | the `actions` and `fields` maps | ~250 |
-| `app.js` | render loop, event delegation, boot | ~120 |
+| `src/js/format.js` | `esc`, `fmtMoney`, `fmtEGP`, `fmtEUR`, `signed`, `formatAmountDisplay`, `sheetsFmtDate` | ~70 |
+| `src/js/constants.js` | header arrays, tag constants, entity descriptors from Phase 6 | ~90 |
+| `src/js/state.js` | the `state` object plus `set` / `setForm` / `toggle` | ~110 |
+| `src/js/sheets.js` | OAuth and every Sheets API call | ~270 |
+| `src/js/model.js` | `computeLedger` plus the per-domain builders from Phase 7 | ~420 |
+| `src/js/views.js` | view helpers and screen views | ~700 |
+| `src/js/actions.js` | the `actions` and `fields` maps | ~250 |
+| `src/app.js` | render loop, event delegation, boot | ~120 |
 
-⬜ If `js/views.js` is still over ~500 lines after Phase 8, split it per screen.
+⬜ If `src/js/views.js` is still over ~500 lines after Phase 8, split it per screen.
+
+⬜ Also in this phase: `index.html` → `<script type="module" src="src/app.js">`,
+`test/smoke.html` → `../src/app.js`, and switch `applyLocalDefaults()` to
+`fetch(new URL('../config/.env', import.meta.url))` so the path stops depending on
+which page loaded the module.
+
+**Tests**
+
+- ⬜ **Nothing lost in the move.** Count exported + local function declarations across
+  the 8 files and assert it equals the count in the pre-split `app.js`. A dropped
+  function during a bulk move is the characteristic failure, and it may not surface
+  until a rarely-used screen is opened.
+- ⬜ **Boot with zero console errors** in both scenarios — the smoke harness already
+  records `window.__errors`; an unresolved import or a cycle shows up there and
+  nowhere else.
+- ⬜ **No import cycles.** Parse the `import` lines across `src/js/*.js` and assert the graph
+  is acyclic. At 8 files this is also checkable by eye, but the check is ~15 lines and
+  survives future files.
+- ⬜ **Served, not just opened.** Run the suite through `scripts/serve.ps1` *and* `npx serve` —
+  modules hard-fail on a wrong MIME type where classic scripts did not.
+- ⬜ **Every file actually reachable.** After deploy, load the live GitHub Pages URL and
+  confirm boot. A file missed in the push now breaks the whole app rather than one
+  screen.
+- ⬜ Golden DOM snapshot clean — a pure move must change nothing.
+
+**Run it with:** Sonnet 5, thinking on, **in one session without a compaction**. It is
+mechanical, but it touches every line of the file at once, and the risk is omission
+rather than misjudgement. Escalate to Opus 5 only if a cycle or a boot failure needs
+untangling.
 
 #### Phase 10 — Split and tokenize `styles.css` ⬜
 
@@ -462,24 +779,63 @@ Depends on the ES-modules decision above. Target ~8 files, none over ~400 lines:
 
    | File | Contents |
    | --- | --- |
-   | `css/base.css` | reset, tokens, `body`, links, layout |
-   | `css/components.css` | buttons, inputs, tables, tabs, pills, stat cards, chevrons |
-   | `css/screens.css` | dashboard, stocks, certificates, plan, ledger |
-   | `css/utilities.css` | the `.mb-*` helpers — last, so they win |
+   | `src/css/base.css` | reset, tokens, `body`, links, layout |
+   | `src/css/components.css` | buttons, inputs, tables, tabs, pills, stat cards, chevrons |
+   | `src/css/screens.css` | dashboard, stocks, certificates, plan, ledger |
+   | `src/css/utilities.css` | the `.mb-*` helpers — last, so they win |
 
 3. ⬜ Update `index.html` with `<link>` tags in that order, and comment that the order
-   matters.
+   matters. Update `test/smoke.html` to the same four `../src/css/…` tags — it loads
+   the real stylesheet, so a missed tag there silently unstyles the harness.
+
+**Tests** — the golden DOM snapshot is blind here: the HTML is unchanged and only the
+rendered result moves. CSS needs its own checks.
+
+- ⬜ **Computed-style assertions.** Pick one representative element per token — a
+  13px label, a 12px caption, a 10px-radius card, a `#fff` panel, each brand colour —
+  and assert `getComputedStyle` returns the same value before and after. Cheaper than
+  screenshots and it names the broken token instead of just flagging a changed page.
+- ⬜ **Screenshot diff, every screen, fixed viewport.** Headless Edge `--screenshot` at a
+  pinned window size, pixel-compare before/after. The only check that catches a rule
+  lost in the split rather than mistyped.
+- ⬜ **Cascade order.** Assert a known override still wins — a `.mb-*` utility beating a
+  component's own margin. This is the failure mode the split introduces and the one
+  nothing else detects.
+- ⬜ **Rule-count conservation.** Rules across the four files should sum to 257 minus
+  Phase 5's deletions. A blunt check, but it catches a whole section dropped between
+  files.
+- ⬜ **Token sweep.** After tokenizing, grep the four files for the literal values that
+  were supposed to be replaced — any survivor is either a miss or a deliberate
+  exception that deserves a comment.
+
+**Run it with:** Sonnet 5, thinking on. The split is pure file movement, but deciding
+whether a given `13px` is *the same* 13px as the others is real judgment — a mechanical
+find-and-replace here is how a font size ends up coupled to an unrelated one.
 
 #### Phase 11 — Re-verify ⬜
 
 1. ⬜ `test/smoke.html` green in both scenarios.
-2. ⬜ Extend the smoke test with a check per new shared helper where cheap.
-3. ⬜ Screenshot every screen before and after the whole of Part II and diff them —
-   Phase 10's tokenizing is the step most likely to shift something by a pixel.
-4. ⬜ Re-check the hand-restored behaviours: caret in text inputs, the search box,
-   slider drag, scroll position.
-5. ⬜ Update `docs/design.md` (file layout, module boundaries) and `CLAUDE.md` (file
-   list, conventions) in the same change.
+2. ⬜ Golden snapshot clean; CSS coverage check clean.
+3. ⬜ Extend the smoke test with a check per new shared helper where cheap.
+4. ⬜ Screenshot every screen from **before Phase 5** against **after Phase 10** and diff
+   the whole of Part II end to end, not just per phase — small per-phase drifts each
+   under the threshold can still add up.
+5. ⬜ Re-check the hand-restored behaviours by hand, since they are the ones the render
+   loop reconstructs and the ones most likely to regress:
+   - caret position while typing in a text input, and in the amount field that
+     reformats as you type;
+   - the Transactions search box;
+   - dragging the what-if slider (the one targeted-DOM-patch path);
+   - scroll position of both panes after a re-render.
+6. ⬜ Confirm the app still writes **nothing** to an empty Sheet — the "no data in the
+   app" rule, and a plausible casualty of descriptor-driven CRUD.
+7. ⬜ Update `docs/design.md` (directory layout, module boundaries, the ES-module
+   decision) and `CLAUDE.md` (file list, conventions, the `scripts/serve.ps1` path) in
+   the same change. `README.md` too, if the run command moved.
+
+**Run it with:** Sonnet 5, thinking on, to run and extend the suite. Escalate to Opus 5
+for any diff that needs triage — "is this pixel shift real?" is a judgment call, and by
+this point the change set is too large to bisect cheaply.
 
 ### Optional, not required ⬜
 
@@ -491,12 +847,17 @@ Depends on the ES-modules decision above. Target ~8 files, none over ~400 lines:
 
 - **Phase 6 is the risky one.** Collapsing 40 handlers into descriptor-driven code is
   where a wrong key silently writes the wrong column. Do it entity by entity, running
-  the smoke test between each, rather than all ten at once.
+  the write-payload test between each, rather than all ten at once.
 - **Phase 10 can shift the visuals.** Replacing literals with tokens is mechanical but
-  easy to fat-finger; the screenshot diff in Phase 11 is the safety net and should not
-  be skipped.
+  easy to fat-finger; the screenshot diff is the safety net and should not be skipped.
+- **Modules fail loudly and totally.** A bad import takes the whole app down before
+  first paint rather than breaking one screen. That is easier to notice locally and
+  worse if it reaches GitHub Pages — hence the post-deploy load check in Phase 9.
 - **Don't over-abstract.** Several of these smells are worth living with: bespoke
   validation, the dashboard's one-off cards, and the certificate group tables are all
   clearer written out. The goal is less repetition, not maximum genericity.
+- **The safety net is load-bearing.** If the golden baseline is captured *after* a phase
+  rather than before, it certifies the bug. Capture it first, and re-baseline only
+  deliberately, with the diff reviewed.
 - **No rollback net beyond git.** Commit at each phase boundary so a bad phase can be
   reverted on its own — but only when asked, per `CLAUDE.md`.

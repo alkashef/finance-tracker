@@ -99,6 +99,7 @@
     spreadsheetId: '',
     clientIdInput: '',
     spreadsheetIdInput: '',
+    fromLocalEnv: false,
     connected: false,
     connecting: false,
     showSettings: true,
@@ -470,6 +471,7 @@
     v.showSettings = s.showSettings;
     v.showAppBody = s.connected && !s.showSettings;
     v.hasSavedConfig = !!s.clientId;
+    v.fromLocalEnv = s.fromLocalEnv;
     v.clientIdInput = s.clientIdInput;
     v.spreadsheetIdInput = s.spreadsheetIdInput;
     v.connectLabel = s.connecting ? 'Connecting…' : 'Save & Connect to Google';
@@ -993,6 +995,7 @@
       + '<input class="input mb-14" data-f="clientId" value="' + esc(v.clientIdInput) + '" placeholder="xxxxxxxxxxxx.apps.googleusercontent.com">'
       + '<label class="lbl">Spreadsheet ID</label>'
       + '<input class="input mb-18" data-f="spreadsheetId" value="' + esc(v.spreadsheetIdInput) + '">'
+      + when(v.fromLocalEnv, '<p class="settings-hint">Prefilled from your local <code>config/.env</code>. Nothing is saved or connected until you press the button below.</p>')
       + '<div class="settings-actions">'
       + '<button class="btn-connect" data-act="saveAndConnect">' + esc(v.connectLabel) + '</button>'
       + when(v.hasSavedConfig, '<button class="btn-connect-ghost" data-act="closeSettings">Cancel</button>')
@@ -2265,12 +2268,60 @@
     } catch (e) { /* no usable saved config */ }
   }
 
+  /* Optional local convenience: a gitignored `config/.env` can prefill the two
+     connection fields so a dev copy doesn't need them retyped after every clear of
+     site data. It is deliberately absent from the hosted site, where both values are
+     typed into Settings by hand.
+
+     This does not breach the "no data in the app" rule: the file is untracked, holds
+     no financial figures, and the repo ships only `config/.env.example` with
+     placeholders. Never read anything else from it, and never commit a real one. */
+  function parseEnv(text) {
+    var out = {};
+    text.split(/\r?\n/).forEach(function (line) {
+      line = line.trim();
+      if (!line || line.charAt(0) === '#') return;
+      var eq = line.indexOf('=');
+      if (eq < 1) return;
+      var key = line.slice(0, eq).trim();
+      var val = line.slice(eq + 1).trim();
+      var q = val.charAt(0);
+      /* Quotes are optional, but honour them so a trailing space isn't swallowed
+         into an ID that then fails to match anything. */
+      if (val.length > 1 && (q === '"' || q === "'") && val.charAt(val.length - 1) === q) {
+        val = val.slice(1, -1);
+      }
+      out[key] = val;
+    });
+    return out;
+  }
+
+  function applyLocalDefaults() {
+    /* A saved config always wins, so editing Settings locally survives a reload. */
+    if (state.clientIdInput || state.spreadsheetIdInput) return;
+    fetch('config/.env', { cache: 'no-store' })
+      .then(function (res) { return res && res.ok ? res.text() : ''; })
+      .then(function (text) {
+        if (!text) return;
+        var env = parseEnv(text);
+        var clientId = env.GOOGLE_OAUTH_CLIENT_ID || '';
+        var spreadsheetId = env.SPREADSHEET_ID || '';
+        if (!clientId && !spreadsheetId) return;
+        /* Prefill only — never auto-connect. Requesting a token without a user
+           gesture gets the OAuth popup blocked. */
+        set({ clientIdInput: clientId, spreadsheetIdInput: spreadsheetId, fromLocalEnv: true });
+      })
+      .catch(function () { /* no local file, or the server won't serve dotfiles — fine */ });
+  }
+
   function boot() {
     sidebarEl = document.getElementById('sidebar');
     mainEl = document.getElementById('main');
     restoreConfig();
     bindEvents();
     render();
+    /* After the first paint: the fields fill in a tick later if the file is there. */
+    applyLocalDefaults();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

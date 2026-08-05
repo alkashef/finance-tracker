@@ -1,0 +1,52 @@
+# The app has no build step and no dependencies, so there is little to ignore.
+# What is here is mostly a safety net: this repo is public on GitHub, and the hard
+# rule in CLAUDE.md is that none of the user's financial data may reach source.
+
+# --- Financial data (the rule that matters) ---------------------------------
+# The Sheet is the only store. Nothing exported from it belongs in the repo, and
+# the Transactions / ledger screens both offer CSV export straight to disk.
+*.csv
+*.xlsx
+*.xls
+*.ods
+
+# --- Google credentials ------------------------------------------------------
+# Only the OAuth *Client ID* is used, and it lives in localStorage, not a file.
+# A client_secret*.json downloaded from Google Cloud Console has no business here.
+client_secret*.json
+*credentials*.json
+*.pem
+
+# --- Local connection defaults ------------------------------------------------
+# config/.env prefills the Settings fields on a dev copy. It is local-only: the
+# hosted site has no such file. config/.env.example IS tracked — it is the template
+# and carries placeholders only, so the negation below must stay after the patterns.
+.env
+.env.*
+!config/.env.example
+
+# --- Node, if npx is used to serve ------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-error.log
+.npm/
+
+# --- Test scratch ------------------------------------------------------------
+# Golden baselines and the smoke harness ARE committed — they are the safety net.
+# Only throwaway output is ignored.
+test/screenshots/
+test/tmp/
+*.local.json
+
+# --- Editor and OS -----------------------------------------------------------
+# .vscode/settings.json is tracked deliberately; nothing else in there is.
+.vscode/*
+!.vscode/settings.json
+*.code-workspace
+.idea/
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+*~
+*.swp
