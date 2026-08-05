@@ -1,8 +1,8 @@
 # Finance Tracker — CLAUDE.md
 
 ## What this is
-A personal finance tracker: accounts, transactions, gold, certificates, provident fund,
-savings, currency rates, dashboard. **Single-file app**: `Finance Tracker (standalone).html`
+A personal finance tracker: accounts, transactions, gold, stocks, certificates,
+provident fund, savings, currency rates, dashboard. **Single-file app**: `index.html`
 bundles all HTML, CSS (inline styles), and JS into one file that runs entirely in the
 browser — no build step, no server, no backend. It is hosted as a static file on
 **GitHub Pages** (`alkashef.github.io`).
@@ -12,12 +12,11 @@ statically. All state lives in the browser (localStorage for config) and in the
 connected Google Sheet (the actual data store).
 
 ## Files
-- `Finance Tracker (standalone).html` — **the live app**, deployed to GitHub Pages. Fully
-  self-contained (bundled). This is the file to ship.
-- `Finance Tracker.dc.html` — the editable source-of-truth Design Component (template +
-  logic class). Edit this, then re-bundle/re-export to regenerate the standalone file.
-- `support.js` — generated DC runtime (template compiler, component registry). Do not
-  hand-edit; it's build output from the design tool, not app logic.
+- `index.html` — **the app**, self-contained (all HTML template, inline-styled markup,
+  and the component's JS logic in one file). This is both the editable source and the
+  file that gets deployed as-is — there is no separate build/bundle step in this repo.
+- `README.md` — user-facing run instructions and the full business-logic reference
+  (mirrors the in-app About page). Keep it current — see "Keeping docs in sync" below.
 
 ## How the Spreadsheet is accessed and edited
 - Storage is a normal Google Sheet, one tab per data section (Accounts, Transactions,
@@ -71,3 +70,10 @@ connected Google Sheet (the actual data store).
 Some older Sheet cells are still typed as Date (not Plain text), which triggers the
 serial-number-read path above. Client-side conversion handles it, but converting those
 cells to Plain text in the Sheet directly removes the edge case.
+
+## Keeping docs in sync
+`README.md` documents how to run the app and the full business logic (balances, gold
+math, certificate maturity math, stock/RSU/ESPP math, currency rates — mirroring the
+in-app About page). Whenever a change in this repo alters app behavior, business logic,
+setup/run steps, or the file layout, update `README.md` in the same change — don't let
+it drift from `index.html`.
