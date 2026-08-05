@@ -15,75 +15,26 @@
 (function () {
   'use strict';
 
-  /* ------------------------------------------------ 1. constants & seeds --- */
+  /* ----------------------------------------------------- 1. constants --- */
 
   var TX_HEADERS = ['Date', 'Amount', 'Description', 'Transaction Type', 'From Account', 'To Account'];
   var LEDGER_HEADERS = ['Date', 'Description', 'Transaction Type', 'Amount', 'Balance'];
   var PLAN_HEADERS = ['Step', 'Item', 'Status', 'Notes', 'Version'];
   var PLAN_STEP_LABELS = { '1': 'Step 1 — Consolidate', '2': 'Step 2 — Analyze', '3': 'Step 3 — Automate' };
-  var TAG_PLAN_ITEM_TEXT = 'Tag every account, gold lot & certificate as Spending, Saving > School, or Saving > Other';
-  var DEFAULT_PLAN_ITEMS = [
-    { Step: '1', Item: 'Credit card accounts tracked as negative balances', Status: 'Done', Notes: '', Version: 'v1' },
-    { Step: '1', Item: 'Obligations: school fees & recurring expenses', Status: 'Not started', Notes: '', Version: '' },
-    { Step: '1', Item: 'Certificates (USD and EGP)', Status: 'Done', Notes: '', Version: 'v3' },
-    { Step: '1', Item: 'Gold holdings (grams)', Status: 'Done', Notes: '', Version: 'v2' },
-    { Step: '1', Item: TAG_PLAN_ITEM_TEXT, Status: 'Done', Notes: 'Dashboard now groups by Spending vs Saving (School / Other) instead of owner-only', Version: 'v4' },
-    { Step: '2', Item: 'Currency/inflation-adjusted net worth (EGP vs USD/gold)', Status: 'Not started', Notes: '', Version: '' },
-    { Step: '2', Item: 'Zakah calculation (nisab + hawl)', Status: 'Not started', Notes: '', Version: '' },
-    { Step: '3', Item: 'Automate data entry (bank statements, SMS, invoices)', Status: 'Not started', Notes: '', Version: '' },
-  ];
-
-  var DEFAULT_SPREADSHEET_ID = '1KDFdh2yZHEH6WnKfQsDZ2qxHuGm49tDJLs2nNAZ3EOI';
-
   var GOLD_HEADERS = ['Quantity', 'Type', 'Brand', 'Weight (gm)', 'Where', 'Purchase Price per Gram (EGP)', 'Purchase Date', 'Current Price per Gram (EGP)', 'As Of', 'Tag'];
-  var DEFAULT_GOLD_ITEMS = [
-    { Quantity: 2, Type: 'Gold 24', Brand: 'BTC', 'Weight (gm)': 5, Where: "Wafy's Bank", 'Purchase Price per Gram (EGP)': 3538.00, 'Purchase Date': '2024-03-21', 'Current Price per Gram (EGP)': 6528.00, 'As Of': '2026-07-29', Tag: 'Saving > Other' },
-    { Quantity: 3, Type: 'Gold 24', Brand: 'Master Gold Egypt', 'Weight (gm)': 10, Where: "Wafy's Bank", 'Purchase Price per Gram (EGP)': 3589.08, 'Purchase Date': '2024-03-31', 'Current Price per Gram (EGP)': 6528.00, 'As Of': '2026-07-29', Tag: 'Saving > Other' },
-    { Quantity: 1, Type: 'Gold 24', Brand: 'Master Gold Egypt', 'Weight (gm)': 20, Where: "Wafy's Bank", 'Purchase Price per Gram (EGP)': 3585.08, 'Purchase Date': '2024-03-31', 'Current Price per Gram (EGP)': 6528.00, 'As Of': '2026-07-29', Tag: 'Saving > Other' },
-    { Quantity: 1, Type: 'Gold 24', Brand: 'BTC', 'Weight (gm)': 31.1, Where: "Wafy's Bank", 'Purchase Price per Gram (EGP)': 5682.96, 'Purchase Date': '2025-09-13', 'Current Price per Gram (EGP)': 6528.00, 'As Of': '2026-07-29', Tag: 'Saving > Other' },
-    { Quantity: 1, Type: 'Gold 24', Brand: 'BTC', 'Weight (gm)': 10, Where: "Wafy's Bank", 'Purchase Price per Gram (EGP)': 5687.00, 'Purchase Date': '2025-09-13', 'Current Price per Gram (EGP)': 6528.00, 'As Of': '2026-07-29', Tag: 'Saving > Other' },
-  ];
-
   var CERT_HEADERS = ['Certificate Number', 'Product Name', 'Open Date', 'Amount', 'Currency', 'Interest Frequency', 'Maturity Date', 'Interest Rate', 'Tag'];
-  var DEFAULT_CERT_ITEMS = [
-    { 'Certificate Number': '114 722 032 623 750 0039', 'Product Name': 'الشهادة البلاتينية - سنه - عائد سنوي', 'Open Date': '2024-02-13', Amount: 350000, Currency: 'EGP', 'Interest Frequency': '1 Year', 'Maturity Date': '2025-02-14', 'Interest Rate': 0.27, Tag: 'Saving > Other' },
-    { 'Certificate Number': '114 722 032 623 750 0061', 'Product Name': 'الشهادة البلاتينية - سنه - عائد سنوي', 'Open Date': '2024-02-13', Amount: 100000, Currency: 'EGP', 'Interest Frequency': '1 Year', 'Maturity Date': '2025-02-14', 'Interest Rate': 0.27, Tag: 'Saving > Other' },
-    { 'Certificate Number': '114 722 032 623 750 0050', 'Product Name': 'الشهادة البلاتينية - سنه - عائد سنوي', 'Open Date': '2024-02-13', Amount: 100000, Currency: 'EGP', 'Interest Frequency': '1 Year', 'Maturity Date': '2025-02-14', 'Interest Rate': 0.27, Tag: 'Saving > Other' },
-    { 'Certificate Number': '114 722 032 623 750 0048', 'Product Name': 'الشهادة البلاتينية - سنه - عائد سنوي', 'Open Date': '2024-02-13', Amount: 150000, Currency: 'EGP', 'Interest Frequency': '1 Year', 'Maturity Date': '2025-02-14', 'Interest Rate': 0.27, Tag: 'Saving > Other' },
-    { 'Certificate Number': '165 704 032 623 750 0018', 'Product Name': 'Al Ahly Plus - USD - 3 Years - Quaterly Return', 'Open Date': '2023-11-06', Amount: 1000, Currency: 'USD', 'Interest Frequency': '3 Month', 'Maturity Date': '2026-11-07', 'Interest Rate': 0.07, Tag: 'Saving > Other' },
-    { 'Certificate Number': '100 704 032 623 750 0013', 'Product Name': 'Al Ahly Plus - USD - 3 Years - Quaterly Return', 'Open Date': '2023-11-07', Amount: 20000, Currency: 'USD', 'Interest Frequency': '3 Month', 'Maturity Date': '2026-11-08', 'Interest Rate': 0.07, Tag: 'Saving > Other' },
-    { 'Certificate Number': '100 709 032 623 750 0013', 'Product Name': 'New Golden Certificate - 3 Years - Quaterly return - USD/EUR', 'Open Date': '2023-11-07', Amount: 2000, Currency: 'EUR', 'Interest Frequency': '3 Month', 'Maturity Date': '2026-11-08', 'Interest Rate': 0.075, Tag: 'Saving > Other' },
-    { 'Certificate Number': '114 704 032 623 750 0019', 'Product Name': 'Al Ahly Plus - USD - 3 Years - Quaterly Return', 'Open Date': '2023-12-28', Amount: 10000, Currency: 'USD', 'Interest Frequency': '3 Month', 'Maturity Date': '2026-12-31', 'Interest Rate': 0.07, Tag: 'Saving > Other' },
-  ];
-
   var RATE_HEADERS = ['Currency', 'Rate to EGP', 'As Of'];
-  var DEFAULT_RATES = [
-    { Currency: 'EGP', 'Rate to EGP': 1, 'As Of': '2024-04-08' },
-    { Currency: 'USD', 'Rate to EGP': 47.5, 'As Of': '2024-04-08' },
-    { Currency: 'EUR', 'Rate to EGP': 51.4, 'As Of': '2024-04-08' },
-  ];
-
   var STOCK_META_HEADERS = ['Symbol', 'Current Price (USD)', 'Cash (USD)', 'As Of'];
-  var DEFAULT_STOCK_META = { Symbol: 'TDC', 'Current Price (USD)': 30.99, 'Cash (USD)': 54.91, 'As Of': '2026-08-01' };
   var STOCK_HOLDINGS_HEADERS = ['Source', 'Label', 'Quantity', 'Cost Basis (USD)', 'Acquired Date'];
-  var DEFAULT_STOCK_HOLDINGS = [
-    { Source: 'Vested RSU', Label: 'RSU vest Mar 2026 (grant Mar 2025)', Quantity: 345, 'Cost Basis (USD)': 10474.20, 'Acquired Date': '2026-03-03' },
-    { Source: 'Vested RSU', Label: 'RSU vest Feb 2026 (grant Feb 2024)', Quantity: 194, 'Cost Basis (USD)': 6109.06, 'Acquired Date': '2026-02-27' },
-  ];
   var STOCK_VESTING_HEADERS = ['Vest Date', 'Grant', 'Units'];
-  var DEFAULT_STOCK_VESTING = [
-    { 'Vest Date': '2027-02-27', Grant: 'TDRSU24IG', Units: 246 },
-    { 'Vest Date': '2027-03-01', Grant: 'TDRSU26IG', Units: 341 },
-    { 'Vest Date': '2027-03-03', Grant: 'TDRSU25IG', Units: 345 },
-    { 'Vest Date': '2028-03-01', Grant: 'TDRSU26IG', Units: 341 },
-    { 'Vest Date': '2028-03-03', Grant: 'TDRSU25IG', Units: 345 },
-    { 'Vest Date': '2029-03-01', Grant: 'TDRSU26IG', Units: 341 },
-  ];
+
+  /* The three tags the dashboard groups by. Not seed data: the grouping logic and
+     the untagged-item defaults key off these exact strings. */
 
   var TAG_SPENDING = 'Spending';
   var TAG_SAVING_SCHOOL = 'Saving > School';
   var TAG_SAVING_OTHER = 'Saving > Other';
-  var DEFAULT_TAGS = [TAG_SPENDING, TAG_SAVING_SCHOOL, TAG_SAVING_OTHER];
+  var TAG_FALLBACK_OPTIONS = [TAG_SPENDING, TAG_SAVING_SCHOOL, TAG_SAVING_OTHER];
 
   var MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var SCENARIO_MIN = 10;
@@ -145,9 +96,9 @@
     clientId: '',
     accessToken: '',
     tokenExpiry: 0,
-    spreadsheetId: DEFAULT_SPREADSHEET_ID,
+    spreadsheetId: '',
     clientIdInput: '',
-    spreadsheetIdInput: DEFAULT_SPREADSHEET_ID,
+    spreadsheetIdInput: '',
     connected: false,
     connecting: false,
     showSettings: true,
@@ -191,7 +142,6 @@
     vestingForm: { mode: 'add', index: -1, date: '', grant: '', units: '' },
     stockPriceForm: { symbol: '', currentPrice: '', cash: '', asOf: '' },
     dashCurrencyOpen: true,
-    aboutTab: 'about',
     goldTab: 'overview',
     certsTab: 'overview',
     txTab: 'overview',
@@ -466,74 +416,15 @@
         stockVesting: data.stockVesting || [], connecting: false,
       });
 
-      var chain = Promise.resolve();
-
-      if (!state.stockMeta) {
-        set({ stockMeta: DEFAULT_STOCK_META });
-        chain = chain.then(function () {
-          return writeSheet('Stock Meta', STOCK_META_HEADERS, [DEFAULT_STOCK_META]).catch(function () {});
-        });
-      }
-      if (!state.stockHoldings.length) {
-        set({ stockHoldings: DEFAULT_STOCK_HOLDINGS });
-        chain = chain.then(function () {
-          return writeSheet('Stock Holdings', STOCK_HOLDINGS_HEADERS, DEFAULT_STOCK_HOLDINGS).catch(function () {});
-        });
-      }
-      if (!state.stockVesting.length) {
-        set({ stockVesting: DEFAULT_STOCK_VESTING });
-        chain = chain.then(function () {
-          return writeSheet('Stock Vesting', STOCK_VESTING_HEADERS, DEFAULT_STOCK_VESTING).catch(function () {});
-        });
-      }
-
-      chain = chain.then(function () {
-        return accounts.length ? ensureSheets(accounts) : null;
-      }).then(function () {
-        return ensureSheets(['Plan', 'Gold', 'Certificates', 'Currency Rates', 'Tags', 'Provident Fund', 'Stock Meta', 'Stock Holdings', 'Stock Vesting']);
-      });
-
-      if (!state.tags.length) {
-        chain = chain.then(function () {
-          return writeSheet('Tags', ['Tag'], DEFAULT_TAGS.map(function (t) { return { Tag: t }; }));
-        }).then(function () { set({ tags: DEFAULT_TAGS }); });
-      }
-      if (!state.providentFund) {
-        var seededPf = { Balance: 1890665, 'As Of': '2026-01-01', Tag: TAG_SAVING_OTHER };
-        chain = chain.then(function () {
-          return writeSheet('Provident Fund', ['Balance', 'As Of', 'Tag'], [seededPf]);
-        }).then(function () { set({ providentFund: seededPf }); });
-      }
-      if (!state.planItems.length) {
-        chain = chain.then(function () {
-          return writeSheet('Plan', PLAN_HEADERS, DEFAULT_PLAN_ITEMS);
-        }).then(function () { set({ planItems: DEFAULT_PLAN_ITEMS }); });
-      } else if (!state.planItems.some(function (p) { return p.Item === TAG_PLAN_ITEM_TEXT; })) {
-        var patched = state.planItems.concat([{
-          Step: '1', Item: TAG_PLAN_ITEM_TEXT, Status: 'Done',
-          Notes: 'Dashboard now groups by Spending vs Saving (School / Other) instead of owner-only', Version: 'v4',
-        }]);
-        chain = chain.then(function () {
-          return writeSheet('Plan', PLAN_HEADERS, patched);
-        }).then(function () { set({ planItems: patched }); });
-      }
-      if (!state.goldItems.length) {
-        chain = chain.then(function () {
-          return writeSheet('Gold', GOLD_HEADERS, DEFAULT_GOLD_ITEMS);
-        }).then(function () { set({ goldItems: DEFAULT_GOLD_ITEMS }); });
-      }
-      if (!state.certItems.length) {
-        chain = chain.then(function () {
-          return writeSheet('Certificates', CERT_HEADERS, DEFAULT_CERT_ITEMS);
-        }).then(function () { set({ certItems: DEFAULT_CERT_ITEMS }); });
-      }
-      if (!state.rates.length) {
-        chain = chain.then(function () {
-          return writeSheet('Currency Rates', RATE_HEADERS, DEFAULT_RATES);
-        }).then(function () { set({ rates: DEFAULT_RATES }); });
-      }
-
-      return chain.then(recomputeAndWriteAllLedgers).then(function () { set({ loading: false }); });
+      /* Nothing is seeded: the Sheet is the only source of data. Empty tabs stay
+         empty, and the app never writes a row the user did not enter. Tabs are
+         still created if missing so later writes have somewhere to land. */
+      return ensureSheets(accounts)
+        .then(function () {
+          return ensureSheets(['Plan', 'Gold', 'Certificates', 'Currency Rates', 'Tags', 'Provident Fund', 'Stock Meta', 'Stock Holdings', 'Stock Vesting']);
+        })
+        .then(recomputeAndWriteAllLedgers)
+        .then(function () { set({ loading: false }); });
     }).catch(function (e) {
       set({ loading: false, connecting: false, error: 'Sync error: ' + e.message });
     });
@@ -600,7 +491,7 @@
     s.accounts.forEach(function (name) { ledgers[name] = computeLedger(name, s.transactions); });
 
     /* --- tags / types / accounts screens --- */
-    v.tagOptions = s.tags.length ? s.tags : DEFAULT_TAGS;
+    v.tagOptions = s.tags.length ? s.tags : TAG_FALLBACK_OPTIONS;
     v.accountRows = s.accounts.map(function (name, i) {
       return { index: i, name: name, owner: s.accountOwners[name] || '', tagDisplay: s.accountTags[name] || TAG_SPENDING };
     });
@@ -795,7 +686,7 @@
     var stockMeta = s.stockMeta || {};
     var stockPrice = parseFloat(stockMeta['Current Price (USD)']) || 0;
     var stockCash = parseFloat(stockMeta['Cash (USD)']) || 0;
-    var stockSymbol = stockMeta.Symbol || 'TDC';
+    var stockSymbol = stockMeta.Symbol || '';
     var rsuNowQty = 0, rsuNowVal = 0, rsuNowCost = 0, esppNowQty = 0, esppNowVal = 0, esppNowCost = 0;
     v.holdingRows = s.stockHoldings.map(function (h, i) {
       var qty = parseFloat(h.Quantity) || 0;
@@ -862,6 +753,8 @@
     v.hasStocks = s.stockHoldings.length > 0 || s.stockVesting.length > 0;
     v.hasEspp = esppNowQty > 0;
     v.stockSymbol = stockSymbol;
+    /* Empty until a Symbol is set in the Sheet — keep the parenthetical off entirely. */
+    v.stockSymbolSuffix = stockSymbol ? ' (' + stockSymbol + ')' : '';
     v.stockPriceDisplay = stockPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     v.stockAsOfDisplay = stockMeta['As Of'] || '—';
     v.stockCashDisplay = fmtMoney(stockCash);
@@ -892,14 +785,14 @@
     var watchRows = maturityRows.slice();
     if (rsuNowVal > 0 || stockCash > 0) {
       watchRows.push({
-        product: 'Stocks — Vested RSU (' + stockSymbol + ')', maturityDate: '—',
+        product: 'Stocks — Vested RSU' + v.stockSymbolSuffix, maturityDate: '—',
         flagText: 'Sellable now', flagClass: 'flag--sellable',
         maturityEgpDisplay: fmtEGP((rsuNowVal + stockCash) * usdRate),
       });
     }
     if (esppNowVal > 0) {
       watchRows.push({
-        product: 'Stocks — ESPP (' + stockSymbol + ')', maturityDate: '—',
+        product: 'Stocks — ESPP' + v.stockSymbolSuffix, maturityDate: '—',
         flagText: 'Sellable now', flagClass: 'flag--sellable',
         maturityEgpDisplay: fmtEGP(esppNowVal * usdRate),
       });
@@ -1075,7 +968,7 @@
         + '</div>')
 
       + '<div class="nav-spacer"></div>'
-      + '<div class="sb-about">' + navItem('About', 'goAbout', v.activeSheet === 'about') + '</div>'
+      + '<div class="sb-about">' + navItem('Plan', 'goPlan', v.activeSheet === 'plan') + '</div>'
       + '<div class="sb-conn">'
       + (v.connected
         ? '<div class="sb-status">Connected</div>'
@@ -1190,7 +1083,7 @@
           + '</div></div>')
         + '</div>'
         + '<div class="group-grid">'
-        + when(v.hasStocks, '<div class="wide-card"><div class="group-title">Stocks (' + esc(v.stockSymbol) + ')</div><div class="stat-row">'
+        + when(v.hasStocks, '<div class="wide-card"><div class="group-title">Stocks' + esc(v.stockSymbolSuffix) + '</div><div class="stat-row">'
           + '<div class="stat-sm c-teal"><div class="stat-label">Sellable now</div><div class="stat-value-sm">' + esc(v.sellableNowDisplay) + '</div></div>'
           + '<div class="stat-sm c-slate"><div class="stat-label">🔒 Vesting later</div><div class="stat-value-sm">' + esc(v.unvestedTotalDisplay) + '</div></div>'
           + '<div class="stat-sm c-green"><div class="stat-label">Gain if sold now</div><div class="stat-value-sm ' + v.stockNowGainClass + '">' + esc(v.stockNowGainDisplay) + ' (' + esc(v.stockNowGainPctDisplay) + ')</div></div>'
@@ -1275,68 +1168,10 @@
       + '</table>';
   }
 
-  function viewAboutContent() {
-    return '<p class="about-intro">Every rule this tracker uses to organize and calculate your money, in one place.</p>'
-      + '<div class="about-list">'
-
-      + '<div><div class="about-h">How everything is organized</div>'
-      + '<p class="about-p">Every account, gold lot, and certificate carries exactly one tag:</p>'
-      + '<ul class="about-ul">'
-      + '<li><strong>Spending</strong> — day-to-day accounts you spend from.</li>'
-      + '<li><strong>Saving &gt; School</strong> — cash set aside for school.</li>'
-      + '<li><strong>Saving &gt; Other</strong> — everything else parked, not spent: Gold, Certificates, and any other savings cash.</li>'
-      + '</ul>'
-      + '<p class="about-note">Untagged items default to Spending (accounts) or Saving &gt; Other (gold/certificates) so nothing old goes missing.</p></div>'
-
-      + '<div><div class="about-h">Accounts &amp; Ledgers</div>'
-      + '<ul class="about-ul">'
-      + '<li>Each account\'s ledger (its running list of in/out amounts) is generated automatically from Transactions — you never edit a ledger directly.</li>'
-      + '<li>Balance = the running sum of every signed transaction touching that account, oldest to newest.</li>'
-      + '<li>Accounts are grouped by Owner on the Dashboard; accounts with no owner set show under "Unassigned".</li>'
-      + '</ul></div>'
-
-      + '<div><div class="about-h">How a transaction affects balances</div>'
-      + '<ul class="about-ul">'
-      + '<li>From + To set: the amount leaves the From account (–) and lands in the To account (+).</li>'
-      + '<li>From only, no To: the amount is applied as-is to that account. Used for "Starting Balance" and "Plug" transaction types, the only two types that don\'t require a To Account.</li>'
-      + '</ul></div>'
-
-      + '<div><div class="about-h">Gold</div>'
-      + '<ul class="about-ul">'
-      + '<li>Each lot\'s grams = Quantity × Weight (gm).</li>'
-      + '<li>Cost = grams × purchase price per gram. Current value = grams × current price per gram.</li>'
-      + '<li>Gain = current value − cost.</li>'
-      + '<li>"Update price for all lots" overwrites the current price/gm and as-of date on every lot at once — gold is priced as one market, not per-lot.</li>'
-      + '</ul></div>'
-
-      + '<div><div class="about-h">Certificates</div>'
-      + '<ul class="about-ul">'
-      + '<li>Amount at maturity = Amount × (1 + Interest Rate) — a flat rate applied once, matching how the bank statement shows it (not compounded per period).</li>'
-      + '<li>EGP figures use each certificate\'s Currency converted through the shared Currency Rates table below.</li>'
-      + '<li>Gain vs principal compares EGP-now to EGP-at-maturity across all certificates combined.</li>'
-      + '<li><strong>Maturity Watch</strong> flags any certificate maturing within 60 days, or already matured, on the Dashboard.</li>'
-      + '</ul></div>'
-
-      + '<div><div class="about-h">Currency rates</div>'
-      + '<ul class="about-ul">'
-      + '<li>One rate per currency (to EGP), shared across every certificate in that currency.</li>'
-      + '<li>Setting a new rate immediately recalculates every EGP figure that depends on it — old rates are overwritten, not kept as history.</li>'
-      + '</ul></div>'
-
-      + '<div><div class="about-h">Sync with Google Sheets</div>'
-      + '<ul class="about-ul">'
-      + '<li>This app runs entirely in your browser and talks to the Google Sheets API directly, with your connected Sheet as the only storage — no server, no deployment.</li>'
-      + '<li>Sign-in uses Google\'s own OAuth popup (not an embedded frame), so it works reliably straight from GitHub Pages. Every add/edit/delete writes straight to the Sheet through that authorized session.</li>'
-      + '<li>"Refresh from Sheet" re-pulls everything, useful if the Sheet was edited by hand.</li>'
-      + '<li>Transactions and CSV exports (Transactions page, and any ledger page) are available any time.</li>'
-      + '</ul></div>'
-
-      + '</div>';
-  }
-
-  function viewPlanTab(v) {
+  function viewPlan(v) {
     var f = state.planForm;
-    return '<p class="hint">The roadmap: get everything into one place, then analyze, then automate.</p>'
+    return '<h2 class="page-title page-title--tight">Plan</h2>'
+      + '<p class="hint">The roadmap: get everything into one place, then analyze, then automate.</p>'
       + '<div class="form-grid plan-form">'
       + field('Step', selectInput('planStep', optionPairs([['1', '1 — Consolidate'], ['2', '2 — Analyze'], ['3', '3 — Automate']], f.step)))
       + field('Item', textInput('planItem', f.item))
@@ -1361,16 +1196,6 @@
           + when(g.empty, '<tr><td class="empty-cell" colspan="5">Nothing here yet</td></tr>')
           + '</table></div>';
       }).join('');
-  }
-
-  function viewAbout(v) {
-    var isPlan = state.aboutTab === 'plan';
-    return '<h2 class="page-title page-title--mid">About</h2>'
-      + '<div class="tabs">'
-      + '<div class="' + cls('tab', !isPlan ? 'active' : '') + '" data-act="aboutTabAbout">About</div>'
-      + '<div class="' + cls('tab', isPlan ? 'active' : '') + '" data-act="aboutTabPlan">Plan</div>'
-      + '</div>'
-      + (isPlan ? viewPlanTab(v) : viewAboutContent());
   }
 
   function viewTransactions(v) {
@@ -1572,7 +1397,8 @@
     var manage = state.stockTab === 'manage';
 
     var overview = when(!manage,
-      '<div class="stock-meta">' + esc(v.stockSymbol) + ' · <strong>$' + esc(v.stockPriceDisplay) + '</strong> / share · as of ' + esc(v.stockAsOfDisplay) + '</div>'
+      '<div class="stock-meta">' + when(v.stockSymbol, esc(v.stockSymbol) + ' · ')
+      + '<strong>$' + esc(v.stockPriceDisplay) + '</strong> / share · as of ' + esc(v.stockAsOfDisplay) + '</div>'
       + '<div class="stock-cards">'
       + '<div class="stock-card stock-card--now">'
       + '<div class="stock-card-head"><span class="stock-dot"></span><span class="stock-card-title">Mine now · can sell today</span></div>'
@@ -1604,7 +1430,7 @@
           + '</div></div>'
         : '<div class="espp-empty"><div class="espp-empty-text">You currently hold <strong>no ESPP shares</strong> — past ESPP purchases were sold. Everything sellable today is vested RSU. Add an ESPP lot in <strong>Manage</strong> if you still hold some.</div></div>')
       + '<div class="whatif">'
-      + '<div class="whatif-head"><span class="whatif-title">What if TDC trades at…</span>'
+      + '<div class="whatif-head"><span class="whatif-title">What if ' + esc(v.stockSymbol || 'it') + ' trades at…</span>'
       + '<span class="whatif-price" id="scenario-price">$' + esc(v.stockScenarioPriceDisplay) + '</span></div>'
       + '<div class="slider-wrap">'
       + '<div class="slider-track"></div>'
@@ -1641,7 +1467,7 @@
       + '<p class="subhint">Vested RSU and ESPP shares sitting in your brokerage. Value = Quantity × current price; gain = value − cost basis.</p>'
       + '<div class="form-grid holding-form">'
       + field('Source', selectInput('holdingSource', options(['Vested RSU', 'ESPP'], hf.source), '', 'white'))
-      + field('Label', textInput('holdingLabel', hf.label, ' placeholder="RSU vest Mar 2026"'))
+      + field('Label', textInput('holdingLabel', hf.label, ' placeholder="RSU vest"'))
       + field('Quantity', numInput('holdingQuantity', hf.quantity))
       + field('Cost Basis (USD)', numInput('holdingCost', hf.cost))
       + field('Acquired', dateInput('holdingAcquired', hf.acquired))
@@ -1669,7 +1495,7 @@
       + '<p class="subhint">Unvested RSU units that vest on future dates. Value = Units × current price.</p>'
       + '<div class="form-grid vesting-form">'
       + field('Vest Date', dateInput('vestingDate', vf.date))
-      + field('Grant', textInput('vestingGrant', vf.grant, ' placeholder="TDRSU26IG"'))
+      + field('Grant', textInput('vestingGrant', vf.grant, ' placeholder="Grant ID"'))
       + field('Units', numInput('vestingUnits', vf.units))
       + submitPair('submitVestingForm', 'cancelVestingForm', vf.mode === 'edit' ? 'Save changes' : 'Add vesting', vf.mode === 'edit', 'btn-row btn-row--sm')
       + '</div>'
@@ -1689,7 +1515,7 @@
       + '</table>');
 
     return '<h2 class="page-title page-title--sub">Stocks</h2>'
-      + '<p class="hint mb-16">Teradata (TDC) — RSU grants &amp; ESPP. All values in USD, shown apart from your EGP totals.</p>'
+      + '<p class="hint mb-16">RSU grants &amp; ESPP. All values in USD, shown apart from your EGP totals.</p>'
       + '<div class="tabs tabs--teal">'
       + '<div class="' + cls('tab', !manage ? 'active' : '') + '" data-act="stockTabOverview">Overview</div>'
       + '<div class="' + cls('tab', manage ? 'active' : '') + '" data-act="stockTabManage">Manage</div>'
@@ -1749,7 +1575,7 @@
       case 'accounts': return viewAccounts(v);
       case 'types': return viewTypes(v);
       case 'tags': return viewTags(v);
-      case 'about': return viewAbout(v);
+      case 'plan': return viewPlan(v);
       case 'transactions': return viewTransactions(v);
       case 'gold': return viewGold(v);
       case 'certs': return viewCerts(v);
@@ -1861,8 +1687,9 @@
     /* --- connection --- */
     saveAndConnect: function () {
       var clientId = state.clientIdInput.trim();
-      var spreadsheetId = state.spreadsheetIdInput.trim() || DEFAULT_SPREADSHEET_ID;
+      var spreadsheetId = state.spreadsheetIdInput.trim();
       if (!clientId) { set({ error: 'Paste your Google OAuth Client ID first.' }); return; }
+      if (!spreadsheetId) { set({ error: 'Paste the Spreadsheet ID of the Sheet holding your data.' }); return; }
       localStorage.setItem('financeTracker.config', JSON.stringify({ clientId: clientId, spreadsheetId: spreadsheetId }));
       set({ clientId: clientId, spreadsheetId: spreadsheetId, connected: true, connecting: true, showSettings: false, error: '' });
       loadAll();
@@ -1892,10 +1719,8 @@
     goCerts: function () { goto('certs'); },
     goStocks: function () { goto('stocks'); },
     goProvidentFund: function () { goto('pf'); },
-    goAbout: function () { goto('about'); },
+    goPlan: function () { goto('plan'); },
     selectAccount: function (d) { goto('account:' + state.accounts[+d.i]); },
-    aboutTabAbout: function () { set({ aboutTab: 'about' }); },
-    aboutTabPlan: function () { set({ aboutTab: 'plan' }); },
     goldTabOverview: function () { set({ goldTab: 'overview' }); },
     goldTabManage: function () { set({ goldTab: 'manage' }); },
     certsTabOverview: function () { set({ certsTab: 'overview' }); },
@@ -2308,15 +2133,17 @@
     },
     applyStockPriceUpdate: function () {
       var f = state.stockPriceForm;
-      var prev = state.stockMeta || DEFAULT_STOCK_META;
+      /* Blank fields keep whatever the Sheet already holds; on a fresh Sheet there
+         is nothing to fall back to, so the price has to be entered. */
+      var prev = state.stockMeta || {};
       var price = f.currentPrice !== '' ? parseFloat(f.currentPrice) : parseFloat(prev['Current Price (USD)']);
       var cash = f.cash !== '' ? parseFloat(f.cash) : parseFloat(prev['Cash (USD)']);
       if (isNaN(price)) { set({ error: 'Enter a current price first.' }); return; }
       var stockMeta = {
-        Symbol: f.symbol.trim() || prev.Symbol,
+        Symbol: f.symbol.trim() || prev.Symbol || '',
         'Current Price (USD)': price,
         'Cash (USD)': isNaN(cash) ? 0 : cash,
-        'As Of': f.asOf || prev['As Of'],
+        'As Of': f.asOf || prev['As Of'] || '',
       };
       persist('Stock Meta', STOCK_META_HEADERS, [stockMeta], {
         stockMeta: stockMeta, stockScenarioPrice: price,
@@ -2429,9 +2256,9 @@
       var saved = JSON.parse(localStorage.getItem('financeTracker.config') || '{}');
       if (saved.clientId) {
         state.clientId = saved.clientId;
-        state.spreadsheetId = saved.spreadsheetId || DEFAULT_SPREADSHEET_ID;
+        state.spreadsheetId = saved.spreadsheetId || '';
         state.clientIdInput = saved.clientId;
-        state.spreadsheetIdInput = saved.spreadsheetId || DEFAULT_SPREADSHEET_ID;
+        state.spreadsheetIdInput = saved.spreadsheetId || '';
         state.connected = true;
         state.showSettings = false;
       }

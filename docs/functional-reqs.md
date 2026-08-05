@@ -1,7 +1,8 @@
 # Functional requirements
 
-Every rule this tracker uses to organize and calculate your money. This is the
-audience-facing mirror of the in-app **About** page — when one changes, change both.
+Every rule this tracker uses to organize and calculate your money. This file is the
+only place these rules are written down — the app used to carry an About screen that
+duplicated them, and it was removed in favour of this doc.
 
 For how the app is built, see [design.md](design.md). For how to run it, see the
 [README](../README.md).
@@ -105,10 +106,13 @@ Tags are editable on the Tags screen; the three above are seeded on first run.
 
 ## Data entry & export
 
+- **The app never invents data.** Nothing is seeded on first connect: missing tabs
+  are created empty and stay empty until you enter something. Every figure on every
+  screen comes from your Sheet.
 - Every add/edit/delete writes straight to the connected Sheet; there is no local
   draft state and no undo.
 - Deleting an account or a tag asks for confirmation; other deletes do not.
 - CSV export is available for the Transactions screen and for any account ledger.
 - "Refresh from Sheet" re-pulls every tab, useful if the Sheet was edited by hand.
-- On first connect, any empty tab is seeded with defaults (tags, gold, certificates,
-  rates, provident fund, plan items, stock meta/holdings/vesting).
+- The **Plan** screen is a simple roadmap list (Step 1–3, item, status, notes,
+  version) stored in the `Plan` tab. It carries no financial data.

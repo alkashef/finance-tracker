@@ -1,4 +1,4 @@
-                                                                   # Finance Tracker — CLAUDE.md
+# Finance Tracker — CLAUDE.md
 
 ## What this is
 
@@ -11,6 +11,13 @@ Read [docs/design.md](docs/design.md) before changing app structure, and
 [docs/functional-reqs.md](docs/functional-reqs.md) before changing any calculation.
 Don't re-explain their contents here.
 
+## Git discipline
+
+**Never commit or push unless the user explicitly asks in that message.** Not at the
+end of a task, not "to be safe", not as a checkpoint — leave changes in the working
+tree and say what you changed. The same goes for `git add`, branch creation, tags,
+and anything else that writes to git history. Work on `main` unless told otherwise.
+
 ## Files
 
 - `index.html` — page shell only: `<head>`, an empty `#sidebar` and `#main`, and the
@@ -18,9 +25,11 @@ Don't re-explain their contents here.
 - `styles.css` — all styling, as ordinary CSS classes.
 - `app.js` — state, Sheets/OAuth calls, view model, screen views, render loop,
   handlers. One classic script in an IIFE.
+- `serve.ps1` — no-dependency local static server (`npx serve .` also works).
+- `test/smoke.html` — drives every screen against a stubbed Sheets API.
 - `README.md` — what the app is and how to run it.
-- `docs/functional-reqs.md` — business rules (mirrors the in-app About page).
-- `docs/design.md` — architecture, Sheets access, auth.
+- `docs/functional-reqs.md` — business rules.
+- `docs/design.md` — architecture, Sheet tab/column layout, Sheets access, auth.
 - `docs/plan.md` — the completed plan for the rewrite that produced this layout.
 
 Every file here is a normal hand-editable source. Nothing is generated; there is no
@@ -28,8 +37,12 @@ export step and no "do not edit" file.
 
 ## Conventions
 
-- **No build tooling.** No npm install, no bundler, no transpile, no ES modules —
-  `index.html` must keep working when opened straight from disk over `file://`.
+- **No data in the app.** The Sheet is the only source of truth. Never add seed rows,
+  sample holdings, default balances, a fallback spreadsheet ID, or anything else that
+  puts the user's figures into source. Missing tabs are created empty and stay empty.
+  This is a hard rule — the repo is on GitHub.
+- **No build tooling.** No npm install to run it, no bundler, no transpile, no ES
+  modules — `app.js` stays a classic script.
 - **No framework and no CDN dependencies** beyond the Google Identity Services script
   needed for OAuth. Don't reach for React, a template library, or a diffing layer;
   the render model in `docs/design.md` is deliberate.
@@ -46,12 +59,18 @@ export step and no "do not edit" file.
 
 ## Verifying a change
 
-There is no test suite. To check work, drive the app in a real browser against a test
-Spreadsheet, or stub `window.fetch` and `window.google.accounts.oauth2` and click
-through the screens — the Sheets layer is the only thing needing network. Cover both
-the Overview and Manage tab of any screen you touched, and re-check typing in text
-inputs (caret position), the search box, and dragging the stock what-if slider: those
-are the behaviours the render loop has to restore by hand.
+Serve the repo (`npx serve . -l 8723`, or `powershell -ExecutionPolicy Bypass -File
+serve.ps1`) and open <http://localhost:8723/test/smoke.html>. It stubs the Sheets API
+and OAuth, drives every screen, and reports pass/fail — no network or Google account
+needed. `?scenario=empty` checks the empty-Sheet path.
+
+Extend `test/smoke.html` when you add a screen or a field. Beyond it, cover both the
+Overview and Manage tab of anything you touched, and re-check typing in text inputs
+(caret position), the search box, and dragging the what-if slider — those are the
+behaviours the render loop restores by hand and the ones most likely to regress.
+
+Note that OAuth cannot work from `file://` (origin `null` can't be registered with
+Google), so anything touching a real Sheet needs the localhost server.
 
 ## Keeping docs in sync
 
@@ -60,8 +79,8 @@ it in the same change. Which doc owns what:
 
 | Change | Doc to update |
 | --- | --- |
-| Behaviour or business logic (a rule, a formula, a default) | `docs/functional-reqs.md` — and the in-app About page in `app.js`, which must not drift from it |
-| Architecture, render model, Sheets access, auth | `docs/design.md` |
+| Behaviour or business logic (a rule, a formula, a default) | `docs/functional-reqs.md` |
+| Architecture, render model, Sheet columns, Sheets access, auth | `docs/design.md` |
 | How to run or set the app up | `README.md` |
 | Agent workflow, file layout, conventions | this file |
 

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Finance Tracker — smoke test</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  #report {
+    position: fixed; inset: 0; z-index: 9999; overflow: auto; margin: 0;
+    padding: 24px; background: #fff; font: 12px/1.6 ui-monospace, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+  }
+  #report:empty { display: none; }
+  .pass { color: #047857; }
+  .fail { color: #dc2626; font-weight: 700; }
+</style>
+<script>
+/* Smoke test for app.js. Loads the real app against a stubbed Google Sheets API and
+   a stubbed OAuth client, drives every screen, and checks the behaviours the render
+   loop restores by hand (focus, caret, scroll, controlled inputs).
+
+   Run:  serve the repo (powershell -ExecutionPolicy Bypass -File serve.ps1)
+         then open  http://localhost:8723/test/smoke.html
+         add  ?scenario=empty  to check the empty-Sheet path.
+
+   It never touches the network and never talks to Google. */
+
+var SCENARIO = new URLSearchParams(location.search).get('scenario') || 'populated';
+
+window.__errors = [];
+window.onerror = function (m, s, l, c) { window.__errors.push('ERROR: ' + m + ' @' + l + ':' + c); };
+window.addEventListener('unhandledrejection', function (e) {
+  window.__errors.push('REJECT: ' + ((e.reason && e.reason.message) || e.reason));
+});
+window.confirm = function () { return true; };
+localStorage.removeItem('financeTracker.config');
+
+/* Fixture data, in the order app.js requests the ranges. Entirely invented — round
+   numbers so the expected values below are obvious by hand. Never put real figures
+   here; this file is in the repo. */
+var POPULATED = [
+  [['Bank A', 'Alex', 'Spending'], ['Savings B', 'Sam', 'Saving > Other'], ['School Fund', 'Alex', 'Saving > School']],
+  [['Salary'], ['Groceries'], ['Starting Balance']],
+  [['Spending'], ['Saving > School'], ['Saving > Other']],
+  [['2026-01-05', 1000, 'Opening balance', 'Starting Balance', 'Bank A', ''],
+   ['2026-02-10', 250.5, 'Groceries & stuff <b>', 'Groceries', 'Bank A', 'Savings B'],
+   ['2026-03-01', 500, 'Transfer', 'Salary', 'Savings B', 'School Fund']],
+  [['1', 'Item one', 'Done', 'a note', 'v1'], ['2', 'Item two', 'Not started', '', ''], ['3', 'Item three', 'In progress', '', '']],
+  [[2, 'Gold 24', 'Brand X', 5, 'Vault', 3000, '2024-03-21', 4000, '2026-07-29', 'Saving > Other'],
+   [1, 'Gold 21', 'Brand Y', 10, 'Home', 5000, '2025-01-01', 4000, '2026-07-29', 'Saving > Other']],
+  [['C-001', 'Example cert EGP', '2024-02-13', 100000, 'EGP', '1 Year', '2026-09-01', 0.2, 'Saving > Other'],
+   ['C-002', 'Example cert USD', '2023-11-06', 1000, 'USD', '3 Month', '2026-11-07', 0.1, 'Saving > Other']],
+  [['EGP', 1, '2024-04-08'], ['USD', 50, '2024-04-08'], ['EUR', 60, '2024-04-08']],
+  [[250000, '2026-01-01', 'Saving > Other']],
+  [['ACME', 20, 100, '2026-08-01']],
+  [['Vested RSU', 'RSU lot', 100, 1500, '2026-03-03'], ['ESPP', 'ESPP lot', 50, 500, '2025-06-01']],
+  [['2027-01-15', 'G-1', 200], ['2028-01-15', 'G-2', 300]]
+];
+var EMPTY = POPULATED.map(function () { return []; });
+var DATA = SCENARIO === 'empty' ? EMPTY : POPULATED;
+
+window.google = { accounts: { oauth2: { initTokenClient: function (cfg) {
+  return { requestAccessToken: function () { cfg.callback({ access_token: 'stub', expires_in: 3600 }); } };
+} } } };
+
+/* Every write the app attempts is recorded so we can assert it never invents data. */
+window.__writes = [];
+window.fetch = function (url) {
+  url = String(url);
+  var body = {};
+  if (url.indexOf('values:batchGet') !== -1) {
+    body = { valueRanges: DATA.map(function (v) { return { values: v }; }) };
+  } else if (url.indexOf('fields=sheets.properties') !== -1) {
+    body = { sheets: [{ properties: { sheetId: 0, title: 'Accounts' } }] };
+  } else if (url.indexOf(':batchUpdate') !== -1) {
+    body = { replies: [{ addSheet: { properties: { sheetId: Math.floor(Math.random() * 1e6) } } }] };
+  } else if (url.indexOf('valueInputOption=RAW') !== -1) {
+    var m = /\/values\/([^!]+)!/.exec(url);
+    window.__writes.push(m ? decodeURIComponent(m[1]) : url);
+  }
+  return Promise.resolve({ json: function () { return Promise.resolve(body); } });
+};
+</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main" id="main"></div>
+</div>
+<pre id="report"></pre>
+
+<script src="../app.js"></script>
+<script>
+var log = [];
+var failures = 0;
+
+function check(name, actual, expected) {
+  var ok = String(actual) === String(expected);
+  if (!ok) failures++;
+  log.push((ok ? '  pass  ' : '  FAIL  ') + name +
+    (ok ? ' = ' + actual : ' — expected ' + expected + ', got ' + actual));
+}
+
+function note(text) { log.push('        ' + text); }
+function section(text) { log.push('\n' + text); }
+
+function el(sel) { return document.querySelector(sel); }
+function click(sel) {
+  var e = el(sel);
+  if (!e) { failures++; log.push('  FAIL  missing ' + sel); return false; }
+  e.click();
+  return true;
+}
+function typeInto(sel, value) {
+  var e = el(sel);
+  if (!e) { failures++; log.push('  FAIL  missing ' + sel); return; }
+  e.value = value;
+  e.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function screen(name, sel) {
+  var main = document.getElementById('main');
+  var ok = !!main.querySelector(sel);
+  if (!ok) failures++;
+  log.push((ok ? '  pass  ' : '  FAIL  ') + name + ' — ' + main.querySelectorAll('tr').length + ' rows');
+}
+/* Click only if present — some controls legitimately don't render with no data. */
+function clickIfPresent(sel) {
+  var e = el(sel);
+  if (e) e.click();
+  return !!e;
+}
+
+/* Screens are checked by a selector that only exists once that screen rendered. */
+var steps = [
+  function () {
+    section('connect');
+    typeInto('[data-f="clientId"]', 'stub.apps.googleusercontent.com');
+    click('[data-act="saveAndConnect"]');
+    check('spreadsheet id is required', /Spreadsheet ID/.test(document.body.textContent), true);
+    typeInto('[data-f="spreadsheetId"]', 'stub-sheet-id');
+    click('[data-act="saveAndConnect"]');
+  },
+
+  function () {
+    section('no invented data');
+    var unexpected = window.__writes.filter(function (s) { return s === 'Bank A' || s === 'Savings B' || s === 'School Fund'; });
+    note('sheets written on load: ' + (window.__writes.join(', ') || '(none)'));
+    check('only account ledgers written', window.__writes.length, unexpected.length);
+    if (SCENARIO === 'empty') check('empty Sheet stays untouched', window.__writes.length, 0);
+  },
+
+  function () { section('screens'); screen('dashboard', '.sec-currency'); },
+  function () {
+    /* Maturity Watch only exists when something is maturing or sellable. */
+    clickIfPresent('[data-act="toggleDashMaturity"]');
+    click('[data-act="toggleRecentTx"]');
+    screen('dashboard expanded', '.sec-recent');
+  },
+  function () { click('[data-act="goTransactions"]'); screen('transactions/overview', '[data-f="search"]'); },
+  function () { click('[data-act="txTabManage"]'); screen('transactions/manage', '[data-f="txAmount"]'); },
+  function () { click('[data-act="goGold"]'); screen('gold/overview', '.stat-grid'); },
+  function () { click('[data-act="goldTabManage"]'); screen('gold/manage', '[data-f="goldPriceCurrent"]'); },
+  function () { click('[data-act="goCerts"]'); screen('certs/overview', '.stat-grid'); },
+  function () { click('[data-act="certsTabManage"]'); screen('certs/manage', '[data-f="rateCurrency"]'); },
+  function () { click('[data-act="goStocks"]'); screen('stocks/overview', '.whatif'); },
+  function () { click('[data-act="stockTabManage"]'); screen('stocks/manage', '[data-f="holdingQuantity"]'); },
+  function () { click('[data-act="goProvidentFund"]'); screen('provident fund', '.stat-grid'); },
+  function () { click('[data-act="pfTabManage"]'); screen('provident fund/manage', '[data-f="pfBalance"]'); },
+  function () { click('[data-act="goAccounts"]'); screen('accounts', '[data-f="acctName"]'); },
+  function () { click('[data-act="goTypes"]'); screen('transaction types', '[data-f="typeName"]'); },
+  function () { click('[data-act="goTags"]'); screen('tags', '[data-f="tagName"]'); },
+  function () { click('[data-act="goPlan"]'); screen('plan', '[data-f="planItem"]'); },
+
+  function () {
+    section('transaction form');
+    click('[data-act="goTransactions"]');
+    click('[data-act="txTabManage"]');
+    typeInto('[data-f="txAmount"]', '1234567.8');
+    check('amount gets thousands separators', el('[data-f="txAmount"]').value, '1,234,567.8');
+  },
+  function () {
+    typeInto('[data-f="txAmount"]', '12ab34');
+    check('amount rejects non-numeric', el('[data-f="txAmount"]').value, '1,234,567.8');
+  },
+  function () {
+    /* Needs the type to exist as an option — an empty Sheet has none. */
+    var hasType = Array.prototype.some.call(el('[data-f="txType"]').options, function (o) {
+      return o.value === 'Starting Balance';
+    });
+    if (!hasType) { note('To Account rules skipped (no transaction types in Sheet)'); this.skip = true; return; }
+    typeInto('[data-f="txType"]', 'Starting Balance');
+    check('To Account disabled for Starting Balance', el('[data-f="txTo"]').disabled, true);
+    typeInto('[data-f="txType"]', 'Groceries');
+    check('To Account enabled otherwise', el('[data-f="txTo"]').disabled, false);
+  },
+
+  function () {
+    section('re-render fidelity');
+    var e = el('[data-f="search"]');
+    e.focus();
+    e.value = 'grocer';
+    e.setSelectionRange(3, 3);
+    e.dispatchEvent(new Event('input', { bubbles: true }));
+    var after = el('[data-f="search"]');
+    check('focus survives re-render', document.activeElement === after, true);
+    check('caret survives re-render', after.selectionStart, 3);
+    note('(the input node itself is replaced: ' + (e !== after) + ')');
+  },
+  function () {
+    var e = el('[data-f="txDescription"]');
+    e.focus();
+    e.value = 'abcdef';
+    e.setSelectionRange(2, 4);
+    e.dispatchEvent(new Event('input', { bubbles: true }));
+    check('selection range survives re-render', el('[data-f="txDescription"]').selectionStart + '-' + el('[data-f="txDescription"]').selectionEnd, '2-4');
+  },
+  function () {
+    var e = el('[data-f="txAmount"]');
+    e.focus();
+    e.value = '1234';
+    e.setSelectionRange(4, 4);
+    e.dispatchEvent(new Event('input', { bubbles: true }));
+    check('caret goes to end when value is reformatted', el('[data-f="txAmount"]').selectionStart, 5);
+  },
+  function () {
+    var main = document.getElementById('main');
+    main.scrollTop = 40;
+    if (main.scrollTop !== 40) { note('scroll check skipped (pane not scrollable at this window size)'); return; }
+    typeInto('[data-f="search"]', 'a');
+    check('scroll position survives re-render', main.scrollTop, 40);
+    typeInto('[data-f="search"]', '');
+  },
+
+  function () {
+    section('what-if slider updates in place');
+    click('[data-act="goStocks"]');
+    /* The Manage tab was left selected by the screen sweep above. */
+    click('[data-act="stockTabOverview"]');
+  },
+  function () {
+    var slider = el('[data-f="stockScenario"]');
+    slider.focus();
+    slider.value = '55';
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    check('slider node is NOT replaced mid-drag', el('[data-f="stockScenario"]') === slider, true);
+    if (SCENARIO !== 'empty') {
+      check('scenario price updates', document.getElementById('scenario-price').textContent, '$55.00');
+      /* 150 held shares x $55 + $100 cash */
+      check('scenario sellable recomputes', document.getElementById('scenario-sellable').textContent, '$8,350.00');
+      /* 500 unvested units x $55 */
+      check('scenario unvested recomputes', document.getElementById('scenario-unvested').textContent, '$27,500.00');
+    }
+    note('fill width = ' + document.getElementById('scenario-fill').style.width);
+  },
+
+  function () {
+    section('escaping');
+    click('[data-act="goTransactions"]');
+  },
+  function () {
+    if (SCENARIO === 'empty') { note('skipped (no rows)'); return; }
+    var html = document.getElementById('main').innerHTML;
+    check('markup in Sheet data is escaped, not injected', html.indexOf('stuff &lt;b&gt;') !== -1, true);
+  },
+
+  function () {
+    var head = failures === 0
+      ? '<span class="pass">ALL CHECKS PASSED</span>'
+      : '<span class="fail">' + failures + ' CHECK(S) FAILED</span>';
+    var errs = window.__errors.length
+      ? '\n<span class="fail">JS errors: ' + window.__errors.join('; ') + '</span>'
+      : '\n<span class="pass">no JS errors</span>';
+    document.getElementById('report').innerHTML =
+      head + '  (scenario: ' + SCENARIO + ')' + errs + '\n' +
+      log.join('\n').replace(/  FAIL /g, '  <span class="fail">FAIL</span> ');
+  }
+];
+
+window.addEventListener('load', function () {
+  var i = 0;
+  (function next() {
+    if (i >= steps.length) return;
+    var fn = steps[i++];
+    try { fn(); } catch (e) { failures++; log.push('  FAIL  step ' + (i - 1) + ' threw: ' + e.message); }
+    setTimeout(next, 60);
+  })();
+});
+</script>
+</body>
+</html>

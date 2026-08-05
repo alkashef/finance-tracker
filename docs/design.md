@@ -71,10 +71,36 @@ the page is concerned.
 
 ## How the Spreadsheet is accessed and edited
 
-- Storage is a normal Google Sheet, one tab per data section (Accounts, Transactions,
-  Gold, Certificates, Provident Fund, Savings, Currency Rates, Stock Meta, Stock
-  Holdings, Stock Vesting, Plan, Tags, Transaction Types), plus one tab per account
-  holding that account's generated ledger.
+- Storage is a normal Google Sheet, one tab per data section, plus one tab per
+  account holding that account's generated ledger.
+- **The app holds no data of its own.** Nothing is seeded, ever: a missing tab is
+  created empty, and the only rows written are ones the user entered (plus the
+  derived ledgers). If a tab is empty, the corresponding screen is empty.
+
+Row 1 of every tab is the header row; reads start at row 2. Columns, in order:
+
+| Tab | Columns |
+| --- | --- |
+| `Accounts` | Account Name, Owner, Tag |
+| `Transaction Types` | Transaction Type |
+| `Tags` | Tag |
+| `Transactions` | Date, Amount, Description, Transaction Type, From Account, To Account |
+| `Gold` | Quantity, Type, Brand, Weight (gm), Where, Purchase Price per Gram (EGP), Purchase Date, Current Price per Gram (EGP), As Of, Tag |
+| `Certificates` | Certificate Number, Product Name, Open Date, Amount, Currency, Interest Frequency, Maturity Date, Interest Rate, Tag |
+| `Currency Rates` | Currency, Rate to EGP, As Of |
+| `Provident Fund` | Balance, As Of, Tag (single row) |
+| `Stock Meta` | Symbol, Current Price (USD), Cash (USD), As Of (single row) |
+| `Stock Holdings` | Source, Label, Quantity, Cost Basis (USD), Acquired Date |
+| `Stock Vesting` | Vest Date, Grant, Units |
+| `Plan` | Step, Item, Status, Notes, Version |
+| *per account* | Date, Description, Transaction Type, Amount, Balance (generated — do not edit) |
+
+`Interest Rate` is stored as a fraction (`0.27`), while the form takes a percentage.
+`Tag` accepts any value from the `Tags` tab; the dashboard only groups by the three
+in `docs/functional-reqs.md`.
+
+How the calls are made:
+
 - The app talks to the **Google Sheets API v4** directly over `fetch`
   (`https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/...`) — no Google
   Apps Script, no server-side proxy.
