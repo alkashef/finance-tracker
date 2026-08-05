@@ -9,10 +9,10 @@ Status legend: **✅ done** · **⬜ not started** · **⚠️ done, but differe
 
 Part I shipped; it is kept below as the record of what was done and why.
 **Part II is the live plan — start there.**
-All three decisions are settled: ES modules for the JS (the app is hosted, so
-`file://` never applied), separate `<link>` tags for the CSS, and a `src/` +
-`scripts/` directory layout. Each phase carries its own test plan and a recommended
-model, so Part II is ready to start at Phase 5.
+Every decision is settled — ES modules for the JS, separate `<link>` tags for the CSS,
+a `src/` + `scripts/` layout, a dependency-free `scripts/test.ps1` runner with committed
+baselines, and manual commits at each phase boundary. Each phase carries its own test
+plan and a recommended model. **Start with the safety net, then Phase 5.**
 
 ---
 
@@ -525,6 +525,65 @@ marker file, both worse than one 404 in the network tab.
 four mechanical edits with an exact spec above. The `src/` moves are not separate work;
 they are the file paths Phases 9 and 10 write to.
 
+### Decision — how the tests run ✅ DECIDED
+
+No new dependencies anywhere. The repo stays install-free: `git clone` and open it.
+
+**A runner, not a browser tab.** `scripts/test.ps1` drives headless Edge, collects each
+harness's verdict, prints a summary and **exits 0 or 1**. Part II needs roughly 25 runs
+across phases and scenarios; reading a `<pre>` by hand 25 times is how a failing check
+gets skimmed past.
+
+One implementation detail, learned the hard way and easy to lose an hour to: Edge's
+`--dump-dom` output must be captured with
+`Start-Process -Wait -NoNewWindow -RedirectStandardOutput <file>`. Plain `>` redirection
+of the exe produces a **0-byte file with exit code 0** — a silent, convincing failure.
+Pass `--headless=new --disable-gpu --no-sandbox --virtual-time-budget=10000` and a
+per-run `--user-data-dir` so parallel or repeated runs don't fight over a profile.
+
+**Baselines are committed files, refreshed deliberately.** The runner writes
+`test/golden.json`; a `--update` flag is the *only* way to rewrite it. Re-baselining is
+then an explicit, reviewable act rather than something that happens because a test was
+run twice. A baseline kept in `localStorage` was rejected outright: it cannot prove that
+a phase from three days ago changed nothing.
+
+**Phase 10 gets a hash, not an image diff.** Nothing in this repo can pixel-compare, and
+adding an image-diff dependency for one phase is not worth it. Headless Edge screenshots
+of an identical DOM at a pinned viewport are byte-identical, so hashing each PNG gives a
+reliable *"something moved"* signal for free. When a hash changes, the computed-style
+assertions say *which token*, and then you look. Revisit only if the hashes prove flaky.
+
+**Unit tests live in `test/unit.html`,** a module page, separate from `test/smoke.html`.
+Different jobs: `smoke.html` is black-box and its value is that it touches nothing but
+the DOM; `unit.html` imports functions directly and asserts on return values. Keeping
+them apart stops one from being weakened to accommodate the other.
+
+#### Consequence: unit tests cannot exist before Phase 9
+
+`unit.html` can only `import` once `app.js` is modules — which is Phase 9. Phases 7 and 8
+run **before** that, so their test plans cannot rely on imports:
+
+- **Phase 7** is verified by the golden DOM snapshot plus arithmetic assertions read off
+  the rendered dashboard, not by calling `buildViewModel()` directly.
+- **Phase 8** is verified by the byte-identical snapshot. Its escaping check works
+  through the DOM instead: put `<script>` and quote characters in the harness fixture and
+  assert every screen renders them escaped — which is a *stronger* test than calling the
+  helper, since it covers the real path from Sheet data to page.
+- **Phase 9** creates `test/unit.html`.
+- **Phase 11** back-fills unit tests for the Phase 7 builders and Phase 8 helpers, now
+  that they are importable.
+
+The alternative — moving Phase 9 ahead of 7 and 8 to unlock imports earlier — was
+rejected: Phase 9's file-size targets assume the Phase 7 split and Phase 8 dedup have
+already happened, and splitting first would trip the "views.js over 500 lines" rule for
+reasons that Phase 8 was about to fix anyway.
+
+### Decision — commits ✅ DECIDED
+
+**Manual, by the repo owner, after each phase.** No agent commits, per `CLAUDE.md`. Each
+phase is expected to end with a green runner and a clean, reviewable diff — that is the
+handoff point, and the per-phase boundary is what makes a bad phase revertable on its
+own.
 ---
 
 ### Picking a model per phase
@@ -555,34 +614,49 @@ numbers were wrong. Match the model to that, not to the line count.
 Don't drop below Sonnet on 6–10. The failure mode of a cheap model here is not a
 crash, it is a plausible-looking refactor that changes a number.
 
-### Safety net — build this before Phase 6 ⬜
+### Safety net — build this FIRST, before Phase 5 ⬜
 
 `test/smoke.html` proves the app *runs*. It does not prove a refactor changed nothing,
-which is the only question Part II asks. Three additions, roughly 200 lines total, and
-Phases 6–10 all lean on them.
+which is the only question Part II asks. Four additions, roughly 300 lines total, and
+every phase leans on them. **Build this before touching any app code** — a baseline
+captured after a change certifies the change.
 
-1. ⬜ **Golden DOM snapshot** (`test/golden.html`). Drive every screen and both tabs,
-   serialize `#sidebar.innerHTML` + `#main.innerHTML` per screen, and compare against a
-   committed baseline JSON. Capture the baseline **before Phase 6** — that file is the
-   definition of "behaviour preserved". Diff output must name the screen and show the
-   first differing span, or it is useless at 700 lines of HTML.
-2. ⬜ **Write-payload capture.** `window.__writes` currently records only sheet *names*.
+1. ⬜ **The runner** (`scripts/test.ps1`). Starts the static server on a free port,
+   drives headless Edge over every harness × scenario, prints one summary, exits 0/1.
+   `-Update` re-writes `test/golden.json`; nothing else may. See the decision above for
+   the `Start-Process -RedirectStandardOutput` trap — `>` silently yields 0 bytes.
+   Note it must reference `serve.ps1` at the repo root until Phase 5 moves it to
+   `scripts/`; that one-line update is part of Phase 5.
+2. ⬜ **Golden DOM snapshot** (`test/golden.html`). Drive every screen and both tabs,
+   serialize `#sidebar.innerHTML` + `#main.innerHTML` per screen, compare against
+   `test/golden.json`. That file is the definition of "behaviour preserved". Diff output
+   must name the screen and show the first differing span, or it is useless at 700 lines
+   of HTML. Drive the screens in a fixed order with fixed expand/collapse state, or the
+   snapshot is not reproducible.
+3. ⬜ **Write-payload capture.** `window.__writes` currently records only sheet *names*.
    Extend the stub `fetch` to record `{ range, headers, rows }` for every PUT. This is
    the one test that catches Phase 6's worst failure — a value written under the wrong
    header — and nothing else will.
-3. ⬜ **CSS coverage check.** While walking every screen, collect every class name
+4. ⬜ **CSS coverage check.** While walking every screen, collect every class name
    present in the DOM; parse the class selectors out of `styles.css`; report *unused*
    selectors and *undefined* classes. Proves Phase 5's deletions are safe, and stops
    the next dead class from accumulating.
+
+`test/unit.html` is **not** here — it can only import once Phase 9 makes the app
+modules. It is created in Phase 9 and filled in Phase 11.
 
 **Run it with:** Sonnet 5, thinking on. Self-contained new code against an existing
 harness with a clear spec.
 
 ### Phases
 
-Each phase ends with `test/smoke.html` green in **both** scenarios (`populated` and
-`?scenario=empty`), the golden snapshot clean, and a visual check of the affected
-screens. Do them in order — later phases assume earlier ones.
+Each phase ends with `scripts/test.ps1` exiting 0 — smoke green in **both** scenarios
+(`populated` and `?scenario=empty`), golden snapshot clean — plus a visual check of the
+affected screens. Do them in order; later phases assume earlier ones.
+
+**Commits are manual, by the repo owner, after each phase.** Leave the working tree
+clean and reviewable at every boundary; that is what makes a bad phase revertable on
+its own.
 
 #### Phase 5 — Housekeeping: dead code and the `scripts/` move ⬜
 
@@ -617,31 +691,50 @@ coverage check that needed judgment was already written in the safety net.
 
 #### Phase 6 — Collapse the CRUD duplication ⬜
 
-The biggest single win: should take the ~470-line `actions` object closer to 150, and
-make adding an entity a data change rather than four new handlers.
+The biggest single win: should take the ~470-line `actions` object closer to 200, and
+make adding an ordinary entity a data change rather than four new handlers.
 
-1. ⬜ Give each entity one descriptor: sheet name, headers, `state` key, form key, the
-   empty-form literal, and `toRecord(form)` / `toForm(record)`. One place per entity
-   instead of three.
+**Scope first — 8 entities, not 10.** Two do not fit the model and must be left alone:
+
+- **Accounts.** `submitAcctForm` and `deleteAccount` are not row edits. They rename a
+  Sheet *tab* (`renameSheet`, falling back to `ensureSheets` when the tab was never
+  created), create one on add, delete one on remove, navigate away if the deleted
+  account's ledger is the active screen, reject duplicate names, and write three
+  parallel structures (`accounts` / `accountOwners` / `accountTags`) through
+  `writeAccountsSheet` rather than one row array. Forcing this into a descriptor
+  would mean a descriptor that can express tab lifecycle — much more machinery than
+  the duplication costs.
+- **Provident Fund.** A single record: no index, no list, no delete, and `pfForm` has
+  no `mode`. `editX` / `deleteX` have nothing to generalise over.
+
+That leaves **8 genuinely repetitive entities**: types, tags, transactions, plan,
+gold, certificates, holdings, vesting.
+
+1. ⬜ Give each of the 8 one descriptor: sheet name, headers, `state` key, form key,
+   the empty-form literal, and `toRecord(form)` / `toForm(record)`. One place per
+   entity instead of three.
 2. ⬜ Derive `editX` / `cancelXForm` / `deleteX` generically from the descriptor —
-   they differ only in which keys they touch.
-3. ⬜ Keep `submitXForm` per entity **only where validation genuinely differs** (gold's
+   across these 8 they differ only in which keys they touch.
+3. ⬜ Keep `submitXForm` per entity **where validation genuinely differs** (gold's
    price inheritance, transactions' To-Account rule, certificates' percent-to-fraction
    conversion). Do not force those into a generic shape; that trades duplication for
    worse indirection.
-4. ⬜ Generate the 51 mechanical `fields` entries from the descriptors, keeping the 6
-   that transform input (`txAmount`, `pfBalance`, and the four upper-casing ones) as
+4. ⬜ Generate the mechanical `fields` entries from the descriptors, keeping the 6 that
+   transform input (`txAmount`, `pfBalance`, and the four upper-casing ones) as
    explicit exceptions.
 
-Watch for: the two `confirm()` prompts (accounts, tags) must survive, and so must the
-ledger recompute that follows transaction and account writes.
+Watch for: the two `confirm()` prompts (accounts, tags) must survive — the accounts one
+is inside the code this phase does not touch, the tags one is inside code it does. The
+ledger recompute that follows transaction writes (`persist(...)`'s `after` callback)
+must survive too.
 
 **Tests** — the heaviest set in Part II, because this is the phase that can corrupt data.
 
-- ⬜ **Round-trip per entity, all 10.** For each: add a row through the UI, edit it,
-  delete it, and assert the captured write payload — header order and cell values —
-  matches the pre-refactor baseline byte for byte. Run this after *each* entity is
-  converted, not after all ten.
+- ⬜ **Round-trip per entity, all 10** — the 8 converted ones *and* the 2 exempt ones.
+  Accounts and Provident Fund must be *proven* untouched, not assumed. For each: add a
+  row through the UI, edit it, delete it, and assert the captured write payload —
+  header order and cell values — matches the pre-refactor baseline byte for byte. Run
+  this after *each* entity is converted, not after all eight.
 - ⬜ **Column-order guard.** Assert the written header row equals the constant header
   array for that sheet. A descriptor with keys in the wrong order still produces
   well-formed output; only this catches it.
@@ -675,9 +768,10 @@ one turn, and the failure is silent. This is where to spend the budget.
 
 **Tests**
 
-- ⬜ **View-model golden.** Freeze a `state` fixture, `JSON.stringify(buildViewModel())`,
-  compare to a baseline captured before the split. Deeper than the DOM snapshot: it
-  catches a value that is wrong but renders to the same string.
+- ⬜ **Golden DOM snapshot**, both scenarios. Note this phase runs *before* Phase 9, so
+  `buildViewModel()` is still sealed inside the IIFE and cannot be called directly —
+  the snapshot is the available proxy. The direct view-model golden is deferred to
+  Phase 11, once `test/unit.html` can import it.
 - ⬜ **Arithmetic against the spec, not the baseline.** With gold, certificates, stock
   and provident fund all non-zero, assert total savings equals the formula in
   [functional-reqs.md](functional-reqs.md#dashboard-totals) — EGP + USD + EUR converted,
@@ -710,14 +804,17 @@ dependency on three other domains is the part a weaker model gets subtly wrong.
   the same HTML as the longhand it replaced produces a zero-byte diff. Do not
   re-baseline this phase — a diff here means the helper is wrong, including whitespace
   differences that could change inline-element spacing.
-- ⬜ **Helper unit tests** (now possible via `import`): `tabBar` marks the right tab
-  active for each of the 5 screens; `statCard` emits each of the 10 colour classes;
-  `gainClass` at positive, negative and **exactly zero** — the boundary the ternary
-  hides.
-- ⬜ **Escaping, explicitly.** Feed `<script>alert(1)</script>` and `" onmouseover="x`
-  through `statCard`, `dataTable` and `tabBar`; assert the output contains no raw `<`
-  or unescaped quote. Escaping is the only defence between Sheet data and injection,
-  and centralizing markup is exactly when an `esc()` gets dropped.
+- ⬜ **Escaping, through the DOM.** Imports don't exist until Phase 9, so test this the
+  stronger way instead: put `<script>alert(1)</script>` and `" onmouseover="x` into the
+  harness fixture's text columns, walk every screen, and assert no raw `<` and no
+  injected attribute appears. That covers the real path from Sheet data to page rather
+  than one helper in isolation. Escaping is the only defence there is, and centralizing
+  markup is exactly when an `esc()` gets dropped.
+- ⬜ **Colour and tab coverage via the snapshot.** All 5 tab bars and all 10 stat-card
+  colour classes already appear across the screens the golden run walks, so a
+  byte-identical snapshot covers them. The one case it does *not* cover is `gainClass`
+  at **exactly zero** — no fixture row hits it. Add a fixture row that does.
+- ⬜ Direct helper unit tests are deferred to Phase 11 (`test/unit.html`).
 - ⬜ **`dataTable` degenerate cases:** zero rows, one row, a row with no actions.
 
 **Run it with:** Sonnet 5, thinking on. Repetitive extraction with an unambiguous
@@ -745,6 +842,11 @@ decisions above). Target ~8 files, none over ~400 lines:
 `test/smoke.html` → `../src/app.js`, and switch `applyLocalDefaults()` to
 `fetch(new URL('../config/.env', import.meta.url))` so the path stops depending on
 which page loaded the module.
+
+⬜ Create `test/unit.html` — a module page that imports from `src/js/*` — and wire it
+into `scripts/test.ps1`. Leave it near-empty here; Phase 11 fills it. Creating it now
+means Phase 9 proves the modules are importable from outside the app, which is the
+thing a boot check alone does not establish.
 
 **Tests**
 
@@ -795,9 +897,12 @@ rendered result moves. CSS needs its own checks.
   13px label, a 12px caption, a 10px-radius card, a `#fff` panel, each brand colour —
   and assert `getComputedStyle` returns the same value before and after. Cheaper than
   screenshots and it names the broken token instead of just flagging a changed page.
-- ⬜ **Screenshot diff, every screen, fixed viewport.** Headless Edge `--screenshot` at a
-  pinned window size, pixel-compare before/after. The only check that catches a rule
-  lost in the split rather than mistyped.
+- ⬜ **Screenshot hash, every screen, fixed viewport.** Headless Edge `--screenshot` at a
+  pinned window size; hash each PNG and compare to the stored hash. Identical DOM at a
+  fixed viewport renders byte-identically, so this is a reliable "something moved"
+  signal with no image-diff dependency. It says *that* something changed, not what —
+  the computed-style assertions above localize it, then look at the screenshot. The
+  only check that catches a rule lost in the split rather than mistyped.
 - ⬜ **Cascade order.** Assert a known override still wins — a `.mb-*` utility beating a
   component's own margin. This is the failure mode the split introduces and the one
   nothing else detects.
@@ -814,22 +919,31 @@ find-and-replace here is how a font size ends up coupled to an unrelated one.
 
 #### Phase 11 — Re-verify ⬜
 
-1. ⬜ `test/smoke.html` green in both scenarios.
-2. ⬜ Golden snapshot clean; CSS coverage check clean.
-3. ⬜ Extend the smoke test with a check per new shared helper where cheap.
-4. ⬜ Screenshot every screen from **before Phase 5** against **after Phase 10** and diff
-   the whole of Part II end to end, not just per phase — small per-phase drifts each
-   under the threshold can still add up.
-5. ⬜ Re-check the hand-restored behaviours by hand, since they are the ones the render
+1. ⬜ `scripts/test.ps1` exits 0: smoke green in both scenarios, golden snapshot clean,
+   CSS coverage clean.
+2. ⬜ **Fill `test/unit.html`** — this is the phase that pays back the deferrals. Now
+   that `src/js/*` is importable:
+   - the per-domain builders from Phase 7, against a frozen `state` fixture, compared
+     to a stored JSON golden (the direct view-model check Phase 7 could not run);
+   - `buildViewModel()` called twice on the same state → identical output, catching a
+     builder that mutates a shared intermediate;
+   - `gainClass` at positive, negative and exactly zero; `statCard` for each colour;
+     `tabBar` for each of the 5 screens;
+   - `dataTable` with zero rows, one row, and a row with no actions;
+   - `parseEnv` on comments, padding, quotes and a missing `=`.
+3. ⬜ Screenshot every screen from **before the safety net** against **after Phase 10**
+   and compare hashes end to end, not just per phase — a per-phase check that was
+   re-baselined can hide a drift the whole-run comparison still catches.
+4. ⬜ Re-check the hand-restored behaviours by hand, since they are the ones the render
    loop reconstructs and the ones most likely to regress:
    - caret position while typing in a text input, and in the amount field that
      reformats as you type;
    - the Transactions search box;
    - dragging the what-if slider (the one targeted-DOM-patch path);
    - scroll position of both panes after a re-render.
-6. ⬜ Confirm the app still writes **nothing** to an empty Sheet — the "no data in the
+5. ⬜ Confirm the app still writes **nothing** to an empty Sheet — the "no data in the
    app" rule, and a plausible casualty of descriptor-driven CRUD.
-7. ⬜ Update `docs/design.md` (directory layout, module boundaries, the ES-module
+6. ⬜ Update `docs/design.md` (directory layout, module boundaries, the ES-module
    decision) and `CLAUDE.md` (file list, conventions, the `scripts/serve.ps1` path) in
    the same change. `README.md` too, if the run command moved.
 
@@ -837,19 +951,26 @@ find-and-replace here is how a font size ends up coupled to an unrelated one.
 for any diff that needs triage — "is this pixel shift real?" is a judgment call, and by
 this point the change set is too large to bisect cheaply.
 
-### Optional, not required ⬜
+### Deferred — not part of Part II ✅ DECIDED
 
-- ⬜ Derive the what-if slider's $10–$80 range from the current price instead of
-  hardcoding it (Part I's "Known remaining item"). This is a behaviour change, so it
-  needs sign-off separately rather than being folded into a refactor.
+- **The what-if slider's hardcoded $10–$80 range stays as it is.** Deriving it from the
+  current price is a real fix — the slider is wrong for a stock trading outside that
+  band — but it is a *behaviour* change, and folding one into Part II would forfeit the
+  ability to say "nothing changed", which is the entire claim the golden baselines
+  exist to support. Revisit as its own change, with its own sign-off, once Part II has
+  landed.
 
 ### Risks
 
-- **Phase 6 is the risky one.** Collapsing 40 handlers into descriptor-driven code is
+- **Phase 6 is the risky one.** Collapsing the handlers into descriptor-driven code is
   where a wrong key silently writes the wrong column. Do it entity by entity, running
-  the write-payload test between each, rather than all ten at once.
+  the write-payload test between each, rather than all eight at once.
 - **Phase 10 can shift the visuals.** Replacing literals with tokens is mechanical but
-  easy to fat-finger; the screenshot diff is the safety net and should not be skipped.
+  easy to fat-finger; the screenshot hashes are the safety net and should not be
+  skipped.
+- **A green runner is not a green build.** `scripts/test.ps1` exiting 0 means the
+  checks that exist passed. It says nothing about a screen no harness walks or a token
+  no assertion covers. When a phase adds surface, add the check in the same phase.
 - **Modules fail loudly and totally.** A bad import takes the whole app down before
   first paint rather than breaking one screen. That is easier to notice locally and
   worse if it reaches GitHub Pages — hence the post-deploy load check in Phase 9.
@@ -859,5 +980,6 @@ this point the change set is too large to bisect cheaply.
 - **The safety net is load-bearing.** If the golden baseline is captured *after* a phase
   rather than before, it certifies the bug. Capture it first, and re-baseline only
   deliberately, with the diff reviewed.
-- **No rollback net beyond git.** Commit at each phase boundary so a bad phase can be
-  reverted on its own — but only when asked, per `CLAUDE.md`.
+- **No rollback net beyond git.** The repo owner commits manually after each phase, so
+  a bad phase can be reverted on its own. A phase that ends without a commit puts the
+  next phase's diff on top of it, and that is where the ability to bisect is lost.
