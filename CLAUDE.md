@@ -97,12 +97,12 @@ export step and no "do not edit" file.
   puts the user's figures into source. Missing tabs are created empty and stay empty.
   This is a hard rule — the repo is on GitHub.
   The carve-out: `config/.env` is an untracked, local-only file that prefills the two
-  connection fields and (optionally) the GoldAPI.io key, `GOLDAPI-KEY` (see
-  `docs/design.md`). It works precisely because it is gitignored — only
-  `config/.env.example` with placeholders is committed. Don't add a tracked fallback if
-  it's missing, and never commit a real one. Extending it further should stay rare and
-  deliberate — each key added is one more thing `.env.example`, `parseEnv()`'s callers
-  and this doc all have to stay in sync on.
+  connection fields and (optionally) the GoldAPI.io / Alpha Vantage keys, `GOLDAPI-KEY`
+  / `ALPHAVANTAGE-KEY` (see `docs/design.md`). It works precisely because it is
+  gitignored — only `config/.env.example` with placeholders is committed. Don't add a
+  tracked fallback if it's missing, and never commit a real one. Extending it further
+  should stay rare and deliberate — each key added is one more thing `.env.example`,
+  `parseEnv()`'s callers and this doc all have to stay in sync on.
 - **No build tooling.** No npm install to run it, no bundler, no transpile.
   `src/app.js` and `src/js/*.js` are plain ES modules — the browser resolves the
   imports itself, so this is still no build step. Import specifiers must be relative
@@ -114,10 +114,9 @@ export step and no "do not edit" file.
   calls GoldAPI.io, Alpha Vantage and open.er-api.com directly with `fetch()` — see
   `docs/design.md`. The two API keys this needs live in `localStorage`
   (`financeTracker.marketDataKeys`), same as the OAuth Client ID / Spreadsheet ID:
-  never commit one, never add a tracked fallback. The GoldAPI.io key can additionally
-  be prefilled from `config/.env` (`GOLDAPI-KEY`, see above); the Alpha Vantage key has
-  no such prefill. A fetch only fills a form for review — it never writes the Sheet by
-  itself.
+  never commit one, never add a tracked fallback. Both can additionally be prefilled
+  from `config/.env` (`GOLDAPI-KEY` / `ALPHAVANTAGE-KEY`, see above). A fetch only
+  fills a form for review — it never writes the Sheet by itself.
 - **No framework and no CDN dependencies** beyond the Google Identity Services script
   needed for OAuth. Don't reach for React, a template library, or a diffing layer;
   the render model in `docs/design.md` is deliberate.

@@ -79,8 +79,9 @@ Sheet" on a later visit — never automatically on page load.
 
 ### Skipping the retyping locally (optional)
 
-On a local copy you can keep those two values — and, optionally, a GoldAPI.io key (see
-below) — in a file instead of pasting them each time you clear site data:
+On a local copy you can keep those two values — and, optionally, a GoldAPI.io and/or
+Alpha Vantage key (see below) — in a file instead of pasting them each time you clear
+site data:
 
 ```sh
 cp config/.env.example config/.env      # then fill in your values
@@ -90,29 +91,32 @@ cp config/.env.example config/.env      # then fill in your values
 GOOGLE_OAUTH_CLIENT_ID=xxxxxxxxxxxx.apps.googleusercontent.com
 SPREADSHEET_ID=1AbC...
 GOLDAPI-KEY=
+ALPHAVANTAGE-KEY=
 ```
 
-The app reads it at startup and **prefills the Settings fields, and the Gold Manage
-screen's GoldAPI.io key field**  — that's all. It still never connects, or fetches a
+The app reads it at startup and **prefills the Settings fields, and the Gold/Stocks
+Manage screens' API key fields** — that's all. It still never connects, or fetches a
 price, on its own (a token request or a fetch without a click gets the OAuth popup
 blocked / just isn't triggered), and each screen says where its value came from.
-Nothing else is read from the file; no financial data belongs in it.
+Nothing else is read from the file; no financial data belongs in it. (Currency rates
+need no key at all, so there's nothing to add here for that one.)
 
 Two things to know:
 
 - **A value you've already saved wins.** These are defaults for empty fields only —
   each independently, so a Sheets connection saved in an earlier session doesn't stop
-  a GoldAPI.io key added to `.env` later from being picked up, or vice versa — so
-  editing Settings or the key in the browser isn't undone on the next reload. To make a
-  changed `config/.env` take effect again, clear the corresponding `localStorage` key.
+  a key added to `.env` later from being picked up, or vice versa — so editing
+  Settings or a key in the browser isn't undone on the next reload. To make a changed
+  `config/.env` take effect again, clear the corresponding `localStorage` key.
 - **`config/.env` is gitignored and never deployed.** The hosted copy has no such
   file — there you type every value into the app by hand once, as above. Only
   `config/.env.example`, with placeholders, is in the repo.
 
 The Client ID and Spreadsheet ID aren't secrets: the Client ID is public by design, and
-the Spreadsheet ID names a document without granting access to it. `GOLDAPI-KEY` *is* a
-real credential (see below) — treat it like any other API key. All three stay out of
-git because `config/.env` is gitignored, not because the first two unlock anything.
+the Spreadsheet ID names a document without granting access to it. `GOLDAPI-KEY` and
+`ALPHAVANTAGE-KEY` *are* real credentials (see below) — treat them like any other API
+key. All four stay out of git because `config/.env` is gitignored, not because the
+first two unlock anything.
 
 ### Optional: fetching live prices instead of typing them in
 
@@ -128,6 +132,7 @@ it's for:
 - **Gold** — a free key from [GoldAPI.io](https://www.goldapi.io/). Can also be
   prefilled from `config/.env` as `GOLDAPI-KEY` (see above).
 - **Stocks** — a free key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key).
+  Can also be prefilled from `config/.env` as `ALPHAVANTAGE-KEY` (see above).
 
 Skip either and just type the price in by hand, as before — nothing else about those
 screens changes.

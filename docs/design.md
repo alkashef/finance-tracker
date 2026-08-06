@@ -228,30 +228,31 @@ How the calls are made:
 ### Optional local defaults (`config/.env`)
 
 On a dev copy, `config/.env` can supply starting values for the two connection fields
-and, optionally, the GoldAPI.io key (`src/js/marketData.js`), so they survive a cleared
-`localStorage`. `applyLocalDefaults()` (`src/app.js`) runs at the end of `boot()`, after
-the first paint:
+and, optionally, the GoldAPI.io and Alpha Vantage keys (`src/js/marketData.js`), so
+they survive a cleared `localStorage`. `applyLocalDefaults()` (`src/app.js`) runs at
+the end of `boot()`, after the first paint:
 
 - It `fetch`es `config/.env` (resolved from `src/app.js`'s own module URL via
   `import.meta.url`, not the loading page's — `test/smoke.html` would otherwise ask
   for `test/config/.env`) and parses `KEY=value` lines with `parseEnv()`
   (`src/js/format.js` — a pure text transform, so it lives with the other
   no-DOM-no-state helpers and is importable on its own by `test/unit.html`): `#`
-  comments, optional surrounding quotes, whitespace trimmed, reading three keys —
-  `GOOGLE_OAUTH_CLIENT_ID`, `SPREADSHEET_ID` and `GOLDAPI-KEY`.
-- **It only fills empty fields, and the two concerns are independent.** The Sheets
+  comments, optional surrounding quotes, whitespace trimmed, reading four keys —
+  `GOOGLE_OAUTH_CLIENT_ID`, `SPREADSHEET_ID`, `GOLDAPI-KEY` and `ALPHAVANTAGE-KEY`.
+  Currency rates (`open.er-api.com`) need no key, so there is no fifth one for that.
+- **It only fills empty fields, and all three concerns are independent.** The Sheets
   connection pair is only filled when *both* `clientIdInput` and `spreadsheetIdInput`
   are still empty (so `restoreConfig()` already having found a saved config skips
-  them); `goldApiKey` is filled separately whenever it is still empty, regardless of
-  whether the Sheets connection was already restored. Either way, editing a value in
-  the browser is not undone on reload — a `config/.env` change only takes effect again
-  once the corresponding `localStorage` value is cleared.
+  them); `goldApiKey` and `stockApiKey` are each filled separately whenever that one is
+  still empty, regardless of the other two. Either way, editing a value in the browser
+  is not undone on reload — a `config/.env` change only takes effect again once the
+  corresponding `localStorage` value is cleared.
 - **It prefills, it never connects or fetches a price on its own.** Requesting a token
   outside a user gesture gets the popup blocked, so the user still presses "Save &
-  Connect"; likewise a prefilled GoldAPI.io key still needs "Fetch latest 24k price"
-  pressed. `state.fromLocalEnv` / `state.goldApiKeyFromEnv` each drive a line
-  disclosing where their value came from — on the Settings screen and the Gold Manage
-  screen respectively.
+  Connect"; likewise a prefilled key still needs its own "Fetch latest…" button
+  pressed. `state.fromLocalEnv` / `state.goldApiKeyFromEnv` / `state.stockApiKeyFromEnv`
+  each drive a line disclosing where their value came from — on the Settings, Gold
+  Manage and Stocks Manage screens respectively.
 - Any failure — file absent, server refusing to serve dotfiles, unparseable content —
   is swallowed. A missing `config/.env` is the normal case and the only case the
   hosted site ever sees.
@@ -259,9 +260,9 @@ the first paint:
 The file is gitignored; only `config/.env.example`, carrying placeholders, is tracked.
 The Client ID and Spreadsheet ID are not credentials: the Client ID is public by design
 and the Spreadsheet ID identifies a document without granting access to it (reading the
-Sheet still requires an OAuth token for an account it is shared with). `GOLDAPI-KEY`
-*is* a real credential — it is kept out of git the same way, but treat it like any
-other API key.
+Sheet still requires an OAuth token for an account it is shared with). `GOLDAPI-KEY` and
+`ALPHAVANTAGE-KEY` *are* real credentials — they are kept out of git the same way, but
+treat them like any other API key.
 
 `scripts/serve.ps1` serves dotfiles (unknown extensions fall back to
 `application/octet-stream`, which `fetch().text()` is happy with). Static servers that
@@ -307,10 +308,10 @@ in `actions.js` on every keystroke and restored by `restoreConfig()` in `src/app
 This is a separate `localStorage` key from `financeTracker.config` (the OAuth Client ID
 / Spreadsheet ID) on purpose: editing a market-data key never touches the Sheets
 connection, and a key typed before a Sheet is ever connected still survives a reload.
-The GoldAPI.io key can additionally be prefilled from `config/.env` (see below) — the
-Alpha Vantage key has no such prefill, since only GoldAPI.io was asked for one. Neither
-key is ever written to the Sheet or committed to the repo — same rule as the OAuth
-Client ID and Spreadsheet ID, just an independent pair of fields.
+Both keys can additionally be prefilled from `config/.env` (see below, `GOLDAPI-KEY` /
+`ALPHAVANTAGE-KEY`). Neither key is ever written to the Sheet or committed to the
+repo — same rule as the OAuth Client ID and Spreadsheet ID, just an independent pair
+of fields.
 
 ## How auth works
 

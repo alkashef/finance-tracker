@@ -127,22 +127,22 @@ function restoreConfig() {
 }
 
 /* Optional local convenience: a gitignored `config/.env` can prefill the two
-   connection fields, and/or a GoldAPI.io key, so a dev copy doesn't need them
-   retyped after every clear of site data. It is deliberately absent from the
-   hosted site, where every value is typed in by hand instead (Settings for the
-   first two, the Gold Manage screen for the key).
+   connection fields, and/or a GoldAPI.io / Alpha Vantage key, so a dev copy
+   doesn't need them retyped after every clear of site data. It is deliberately
+   absent from the hosted site, where every value is typed in by hand instead
+   (Settings for the first two, the Gold/Stocks Manage screens for the keys).
 
    This does not breach the "no data in the app" rule: the file is untracked, holds
    no financial figures, and the repo ships only `config/.env.example` with
    placeholders. Never commit a real one. parseEnv() itself lives in js/format.js —
    see the comment there. */
 function applyLocalDefaults() {
-  /* A saved value always wins, so editing Settings/the Gold key locally survives a
-     reload — but the two concerns are independent: a Sheets connection saved in an
-     earlier session shouldn't stop a GoldAPI key added to .env later from being
-     picked up, and vice versa, so the fetch is only skipped once there is nothing
-     left it could fill. */
-  if (state.clientIdInput && state.spreadsheetIdInput && state.goldApiKey) return;
+  /* A saved value always wins, so editing Settings/a key locally survives a reload
+     — but all three concerns are independent: a Sheets connection saved in an
+     earlier session shouldn't stop a key added to .env later from being picked up,
+     and vice versa, so the fetch is only skipped once there is nothing left it
+     could fill. */
+  if (state.clientIdInput && state.spreadsheetIdInput && state.goldApiKey && state.stockApiKey) return;
   /* Resolved from this module's own URL, not the document's — `fetch('config/.env')`
      resolves relative to whichever page loaded app.js, which is wrong from
      test/smoke.html (it would ask for test/config/.env). new URL(..., import.meta.url)
@@ -167,6 +167,10 @@ function applyLocalDefaults() {
       if (!state.goldApiKey && env['GOLDAPI-KEY']) {
         patch.goldApiKey = env['GOLDAPI-KEY'];
         patch.goldApiKeyFromEnv = true;
+      }
+      if (!state.stockApiKey && env['ALPHAVANTAGE-KEY']) {
+        patch.stockApiKey = env['ALPHAVANTAGE-KEY'];
+        patch.stockApiKeyFromEnv = true;
       }
       if (Object.keys(patch).length) set(patch);
     })

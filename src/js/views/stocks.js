@@ -69,7 +69,9 @@ export function viewStocks(v) {
     + '</div>'
     + '<p class="panel-note mb-14">Looks up the latest daily close for the Symbol below via '
     + '<a href="https://www.alphavantage.co/" target="_blank" rel="noopener">Alpha Vantage</a> (free key) and fills '
-    + 'Current Price and As Of — review, then click Update.</p>'
+    + 'Current Price and As Of — review, then click Update.'
+    + when(state.stockApiKeyFromEnv, ' Prefilled from your local <code>config/.env</code>.')
+    + '</p>'
     + '<div class="stock-price-form">'
     + field('Symbol', textInput('stockSymbol', pf.symbol, ' placeholder="' + esc(v.stockSymbol) + '"'))
     + field('Current Price (USD)', numInput('stockPrice', pf.currentPrice, ' placeholder="' + esc(v.stockPriceDisplay) + '"'))

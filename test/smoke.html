@@ -42,7 +42,7 @@ var DATA = SCENARIO === 'empty' ? EMPTY : POPULATED;
    without it the stub 404s, which is what the hosted site and CI always see.
    The fixture deliberately includes a comment, padded spaces and a quoted value. */
 var LOCAL_ENV = new URLSearchParams(location.search).get('env') === '1'
-  ? '# local defaults\nGOOGLE_OAUTH_CLIENT_ID = env123.apps.googleusercontent.com\nSPREADSHEET_ID="env-sheet-id"\nGOLDAPI-KEY=env-gold-key\nUNUSED_KEY=ignored\n'
+  ? '# local defaults\nGOOGLE_OAUTH_CLIENT_ID = env123.apps.googleusercontent.com\nSPREADSHEET_ID="env-sheet-id"\nGOLDAPI-KEY=env-gold-key\nALPHAVANTAGE-KEY=env-stock-key\nUNUSED_KEY=ignored\n'
   : null;
 
 installHarness(DATA, { localEnv: LOCAL_ENV });
@@ -289,7 +289,17 @@ var steps = [
   function () { click('[data-act="stockTabManage"]'); screen('stocks/manage', '[data-f="holdingQuantity"]'); },
   function () {
     section('stock price fetch');
-    check('stock fetch key input renders', !!el('[data-f="stockApiKey"]'), true);
+    var envHint = /Prefilled from your local/.test(document.getElementById('main').textContent);
+    if (LOCAL_ENV) {
+      check('config/.env ALPHAVANTAGE-KEY prefills the key field', el('[data-f="stockApiKey"]').value, 'env-stock-key');
+      check('prefill is disclosed on the Stocks Manage screen', envHint, true);
+    } else {
+      check('no .env leaves the Alpha Vantage key empty', el('[data-f="stockApiKey"]').value, '');
+      check('no .env shows no prefill hint here', envHint, false);
+    }
+    /* Cleared explicitly so the guard-clause check below is deterministic
+       regardless of whether this run prefilled a key. */
+    typeInto('[data-f="stockApiKey"]', '');
     click('[data-act="fetchStockPrice"]');
     check('fetch without a key asks for one', /Paste an Alpha Vantage key first/.test(document.body.textContent), true);
   },

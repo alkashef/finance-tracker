@@ -56,6 +56,7 @@ export var state = {
   vestingForm: ENTITIES.vesting.emptyForm(),
   stockPriceForm: { symbol: '', currentPrice: '', cash: '', asOf: '' },
   stockApiKey: '',
+  stockApiKeyFromEnv: false,
   dashCurrencyOpen: true,
   goldTab: 'overview',
   certsTab: 'overview',
