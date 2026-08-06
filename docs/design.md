@@ -13,7 +13,7 @@ files, served as-is:
 | --- | --- |
 | `index.html` | The page shell: `<head>` metadata, the favicon, `<link>` to the stylesheet, the Google Identity Services `<script>`, an empty `#sidebar` and `#main`, and `<script src="app.js">`. Nothing else — every screen is rendered by JS. |
 | `styles.css` | All styling, as ordinary classes. |
-| `app.js` | Everything else: constants and seed data, formatting helpers, the state object, the OAuth + Sheets API layer, the view model, the screen views, the render loop, and the event handlers. |
+| `app.js` | Everything else: constants and entity descriptors, formatting helpers, the state object, the OAuth + Sheets API layer, the view model, the screen views, the render loop, and the event handlers. |
 
 `app.js` is a single classic script wrapped in an IIFE. That was originally to keep
 `index.html` working when opened directly from disk over `file://`, but **that reason
@@ -45,6 +45,42 @@ dispatch on data attributes.
   Row-level buttons carry `data-i="<index>"`; the certificate group toggle carries
   `data-k="<currency>"`.
 - `data-f="someField"` on an input/select → `fields.someField(value)` on `input`.
+
+**Most of both maps is generated from entity descriptors.** Eight of the ten entities
+— transaction types, tags, transactions, plan, gold, certificates, stock holdings,
+stock vesting — differ only in which sheet, headers, state keys and form fields they
+touch, so each is described once in the `ENTITIES` object and its handlers are built
+from that:
+
+| Descriptor key | What it decides |
+| --- | --- |
+| `act` | the names in the markup: `edit<act>`, `cancel<act>Form`, `submit<act>Form`, `delete<act>` |
+| `sheet`, `headers` | where the write lands and the column order it is projected through |
+| `list`, `form` | the `state` keys holding the rows and the form |
+| `emptyForm()` | a fresh blank form — the initial state value, what Cancel restores, and what a successful save leaves behind |
+| `toForm`, `toRecord` | record ↔ form conversion |
+| `toRow` | state item → the record `writeSheet()` projects; omitted where the item already is one |
+| `validate` | `null` to save, a message to show, `''` to abort without one |
+| `fields` | `data-f` attribute → the form key it sets |
+| `after` | runs after a successful write (transactions invalidate every ledger) |
+| `confirmDelete` | the prompt to raise first; only tags has one |
+
+`edit`, `cancel` and `delete` are always generated. `submit` is generated too unless
+the entity validates on its own terms — transactions (whether To Account is required
+depends on the type), gold (a lot with no price inherits one) and certificates (the
+form takes a percentage, the sheet stores a fraction) are written out by hand and call
+`saveRecord()` for the shared tail. A field handler that rewrites what the user typed
+is likewise written out; adding a *plain* field is a line in a descriptor's `fields`,
+not a new handler. Generation refuses to shadow a hand-written name, so a collision
+fails at boot rather than silently dropping the transform.
+
+Two entities are deliberately not descriptor-driven and stay written out in full:
+
+- **Accounts** — its records are Sheet *tabs*. Saving renames one, adding creates one,
+  deleting removes one, it rejects duplicate names, navigates away if the deleted
+  account's ledger is on screen, and writes three parallel maps as a single sheet.
+- **Provident Fund** — a single record: no index, no list, no delete, no mode, so
+  `edit`/`delete` have nothing to generalise over.
 
 Because the whole pane is rebuilt on every keystroke, three things React used to give
 for free are restored explicitly in `render()`:

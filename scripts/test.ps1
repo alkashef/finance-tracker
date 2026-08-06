@@ -4,9 +4,10 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\test.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -Update
 #
-# -Update (re)captures test/golden.json from the current app.js/styles.css — the only
-# thing allowed to rewrite that file. Review the diff before committing it; a baseline
-# captured after a change certifies the change.
+# -Update (re)captures test/golden.json (rendered DOM) and test/crud.json (Sheets write
+# payloads) from the current app.js/styles.css — the only thing allowed to rewrite those
+# files. Review the diff before committing it; a baseline captured after a change
+# certifies the change.
 #
 
 param([switch]$Update)
@@ -89,11 +90,11 @@ function Get-ReportResult {
   return [pscustomobject]@{ Ok = ($passed -and $noErrors); Summary = $summary; Report = $reportText.Trim() }
 }
 
-function Get-GoldenOutput {
-  param([string]$Html)
+function Get-CaptureOutput {
+  param([string]$Html, [string]$OutputId)
   if (-not $Html) { return $null }
   $opts = [System.Text.RegularExpressions.RegexOptions]::Singleline
-  $m = [regex]::Match($Html, '<pre id="golden-output">(.*?)</pre>', $opts)
+  $m = [regex]::Match($Html, ('<pre id="' + $OutputId + '">(.*?)</pre>'), $opts)
   if (-not $m.Success -or $m.Groups[1].Value.Trim() -eq '') { return $null }
   return [System.Net.WebUtility]::HtmlDecode($m.Groups[1].Value)
 }
@@ -116,6 +117,7 @@ function Main {
   $repoRoot = Split-Path -Parent $PSScriptRoot
   $testDir = Join-Path $repoRoot 'test'
   $goldenPath = Join-Path $testDir 'golden.json'
+  $crudPath = Join-Path $testDir 'crud.json'
   $serveScript = Join-Path $PSScriptRoot 'serve.ps1'
 
   if (-not (Test-Path -LiteralPath $serveScript)) {
@@ -147,24 +149,30 @@ function Main {
     $base = "http://localhost:$port"
 
     if ($Update) {
-      Write-Host 'Capturing golden baseline (scenario: populated)...' -ForegroundColor Yellow
-      $popHtml = Invoke-Harness -EdgePath $edge -Url "$base/test/golden.html?scenario=populated&update=1" -Label 'golden-update-populated' -WorkDir $work
-      $popFragment = Get-GoldenOutput $popHtml
+      $baselines = @(
+        @{ Page = 'golden.html'; OutputId = 'golden-output'; Path = $goldenPath; Name = 'golden' },
+        @{ Page = 'crud.html'; OutputId = 'crud-output'; Path = $crudPath; Name = 'crud' }
+      )
+      foreach ($b in $baselines) {
+        Write-Host ("Capturing {0} baseline (scenario: populated)..." -f $b.Name) -ForegroundColor Yellow
+        $popHtml = Invoke-Harness -EdgePath $edge -Url "$base/test/$($b.Page)?scenario=populated&update=1" -Label "$($b.Name)-update-populated" -WorkDir $work
+        $popFragment = Get-CaptureOutput $popHtml $b.OutputId
 
-      Write-Host 'Capturing golden baseline (scenario: empty)...' -ForegroundColor Yellow
-      $emptyHtml = Invoke-Harness -EdgePath $edge -Url "$base/test/golden.html?scenario=empty&update=1" -Label 'golden-update-empty' -WorkDir $work
-      $emptyFragment = Get-GoldenOutput $emptyHtml
+        Write-Host ("Capturing {0} baseline (scenario: empty)..." -f $b.Name) -ForegroundColor Yellow
+        $emptyHtml = Invoke-Harness -EdgePath $edge -Url "$base/test/$($b.Page)?scenario=empty&update=1" -Label "$($b.Name)-update-empty" -WorkDir $work
+        $emptyFragment = Get-CaptureOutput $emptyHtml $b.OutputId
 
-      if (-not $popFragment -or -not $emptyFragment) {
-        Write-Host 'Update failed: golden.html did not emit #golden-output for one or both scenarios.' -ForegroundColor Red
-        if ($popHtml) { Write-Host (Get-ReportResult $popHtml).Report -ForegroundColor DarkGray }
-        if ($emptyHtml) { Write-Host (Get-ReportResult $emptyHtml).Report -ForegroundColor DarkGray }
-        return 1
+        if (-not $popFragment -or -not $emptyFragment) {
+          Write-Host ("Update failed: {0} did not emit #{1} for one or both scenarios." -f $b.Page, $b.OutputId) -ForegroundColor Red
+          if ($popHtml) { Write-Host (Get-ReportResult $popHtml).Report -ForegroundColor DarkGray }
+          if ($emptyHtml) { Write-Host (Get-ReportResult $emptyHtml).Report -ForegroundColor DarkGray }
+          return 1
+        }
+
+        $finalJson = "{`n  ""populated"": " + (Add-Indent $popFragment 2) + ",`n  ""empty"": " + (Add-Indent $emptyFragment 2) + "`n}`n"
+        [System.IO.File]::WriteAllText($b.Path, $finalJson, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host ("Wrote {0}" -f $b.Path) -ForegroundColor Green
       }
-
-      $finalJson = "{`n  ""populated"": " + (Add-Indent $popFragment 2) + ",`n  ""empty"": " + (Add-Indent $emptyFragment 2) + "`n}`n"
-      [System.IO.File]::WriteAllText($goldenPath, $finalJson, (New-Object System.Text.UTF8Encoding($false)))
-      Write-Host "Wrote $goldenPath" -ForegroundColor Green
       Write-Host ''
     }
 
@@ -173,7 +181,9 @@ function Main {
       @{ Url = "$base/test/smoke.html?scenario=empty"; Label = 'smoke (empty)' },
       @{ Url = "$base/test/smoke.html?env=1"; Label = 'smoke (env prefill)' },
       @{ Url = "$base/test/golden.html"; Label = 'golden (populated)' },
-      @{ Url = "$base/test/golden.html?scenario=empty"; Label = 'golden (empty)' }
+      @{ Url = "$base/test/golden.html?scenario=empty"; Label = 'golden (empty)' },
+      @{ Url = "$base/test/crud.html"; Label = 'crud (populated)' },
+      @{ Url = "$base/test/crud.html?scenario=empty"; Label = 'crud (empty)' }
     )
 
     $allOk = $true

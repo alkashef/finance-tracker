@@ -1,0 +1,2317 @@
+{
+  "populated": {
+    "types.add": [
+      {
+        "sheet": "Transaction Types",
+        "range": "Transaction Types!A1",
+        "headers": [
+          "Transaction Type"
+        ],
+        "rows": [
+          [
+            "Salary"
+          ],
+          [
+            "Groceries"
+          ],
+          [
+            "Starting Balance"
+          ],
+          [
+            "ZZ Type X"
+          ]
+        ]
+      }
+    ],
+    "types.edit": [
+      {
+        "sheet": "Transaction Types",
+        "range": "Transaction Types!A1",
+        "headers": [
+          "Transaction Type"
+        ],
+        "rows": [
+          [
+            "Salary"
+          ],
+          [
+            "Groceries"
+          ],
+          [
+            "Starting Balance"
+          ],
+          [
+            "ZZ Type X v2"
+          ]
+        ]
+      }
+    ],
+    "types.delete": [
+      {
+        "sheet": "Transaction Types",
+        "range": "Transaction Types!A1",
+        "headers": [
+          "Transaction Type"
+        ],
+        "rows": [
+          [
+            "Salary"
+          ],
+          [
+            "Groceries"
+          ],
+          [
+            "Starting Balance"
+          ]
+        ]
+      }
+    ],
+    "tags.add": [
+      {
+        "sheet": "Tags",
+        "range": "Tags!A1",
+        "headers": [
+          "Tag"
+        ],
+        "rows": [
+          [
+            "Spending"
+          ],
+          [
+            "Saving > School"
+          ],
+          [
+            "Saving > Other"
+          ],
+          [
+            "ZZ Tag X"
+          ]
+        ]
+      }
+    ],
+    "tags.edit": [
+      {
+        "sheet": "Tags",
+        "range": "Tags!A1",
+        "headers": [
+          "Tag"
+        ],
+        "rows": [
+          [
+            "Spending"
+          ],
+          [
+            "Saving > School"
+          ],
+          [
+            "Saving > Other"
+          ],
+          [
+            "ZZ Tag X v2"
+          ]
+        ]
+      }
+    ],
+    "tags.delete": [
+      {
+        "sheet": "Tags",
+        "range": "Tags!A1",
+        "headers": [
+          "Tag"
+        ],
+        "rows": [
+          [
+            "Spending"
+          ],
+          [
+            "Saving > School"
+          ],
+          [
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "transactions.add": [
+      {
+        "sheet": "Transactions",
+        "range": "Transactions!A1",
+        "headers": [
+          "Date",
+          "Amount",
+          "Description",
+          "Transaction Type",
+          "From Account",
+          "To Account"
+        ],
+        "rows": [
+          [
+            "2026-01-05",
+            1000,
+            "Opening balance",
+            "Starting Balance",
+            "Bank A",
+            ""
+          ],
+          [
+            "2026-02-10",
+            250.5,
+            "Groceries & stuff <b>",
+            "Groceries",
+            "Bank A",
+            "Savings B"
+          ],
+          [
+            "2026-03-01",
+            500,
+            "Transfer",
+            "Salary",
+            "Savings B",
+            "School Fund"
+          ],
+          [
+            "2026-04-15",
+            "1234.5",
+            "ZZ crud add",
+            "Groceries",
+            "Bank A",
+            "Savings B"
+          ]
+        ]
+      },
+      {
+        "sheet": "Bank A",
+        "range": "Bank A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-01-05",
+            "Opening balance",
+            "In",
+            1000,
+            1000
+          ],
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "Out",
+            -250.5,
+            749.5
+          ],
+          [
+            "2026-04-15",
+            "ZZ crud add",
+            "Out",
+            -1234.5,
+            -485
+          ]
+        ]
+      },
+      {
+        "sheet": "Savings B",
+        "range": "Savings B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "In",
+            250.5,
+            250.5
+          ],
+          [
+            "2026-03-01",
+            "Transfer",
+            "Out",
+            -500,
+            -249.5
+          ],
+          [
+            "2026-04-15",
+            "ZZ crud add",
+            "In",
+            1234.5,
+            985
+          ]
+        ]
+      },
+      {
+        "sheet": "School Fund",
+        "range": "School Fund!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-03-01",
+            "Transfer",
+            "In",
+            500,
+            500
+          ]
+        ]
+      }
+    ],
+    "transactions.edit": [
+      {
+        "sheet": "Transactions",
+        "range": "Transactions!A1",
+        "headers": [
+          "Date",
+          "Amount",
+          "Description",
+          "Transaction Type",
+          "From Account",
+          "To Account"
+        ],
+        "rows": [
+          [
+            "2026-01-05",
+            1000,
+            "Opening balance",
+            "Starting Balance",
+            "Bank A",
+            ""
+          ],
+          [
+            "2026-02-10",
+            250.5,
+            "Groceries & stuff <b>",
+            "Groceries",
+            "Bank A",
+            "Savings B"
+          ],
+          [
+            "2026-03-01",
+            500,
+            "Transfer",
+            "Salary",
+            "Savings B",
+            "School Fund"
+          ],
+          [
+            "2026-04-15",
+            "2000",
+            "ZZ crud edit",
+            "Groceries",
+            "Bank A",
+            "Savings B"
+          ]
+        ]
+      },
+      {
+        "sheet": "Bank A",
+        "range": "Bank A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-01-05",
+            "Opening balance",
+            "In",
+            1000,
+            1000
+          ],
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "Out",
+            -250.5,
+            749.5
+          ],
+          [
+            "2026-04-15",
+            "ZZ crud edit",
+            "Out",
+            -2000,
+            -1250.5
+          ]
+        ]
+      },
+      {
+        "sheet": "Savings B",
+        "range": "Savings B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "In",
+            250.5,
+            250.5
+          ],
+          [
+            "2026-03-01",
+            "Transfer",
+            "Out",
+            -500,
+            -249.5
+          ],
+          [
+            "2026-04-15",
+            "ZZ crud edit",
+            "In",
+            2000,
+            1750.5
+          ]
+        ]
+      },
+      {
+        "sheet": "School Fund",
+        "range": "School Fund!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-03-01",
+            "Transfer",
+            "In",
+            500,
+            500
+          ]
+        ]
+      }
+    ],
+    "transactions.delete": [
+      {
+        "sheet": "Transactions",
+        "range": "Transactions!A1",
+        "headers": [
+          "Date",
+          "Amount",
+          "Description",
+          "Transaction Type",
+          "From Account",
+          "To Account"
+        ],
+        "rows": [
+          [
+            "2026-01-05",
+            1000,
+            "Opening balance",
+            "Starting Balance",
+            "Bank A",
+            ""
+          ],
+          [
+            "2026-02-10",
+            250.5,
+            "Groceries & stuff <b>",
+            "Groceries",
+            "Bank A",
+            "Savings B"
+          ],
+          [
+            "2026-03-01",
+            500,
+            "Transfer",
+            "Salary",
+            "Savings B",
+            "School Fund"
+          ]
+        ]
+      },
+      {
+        "sheet": "Bank A",
+        "range": "Bank A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-01-05",
+            "Opening balance",
+            "In",
+            1000,
+            1000
+          ],
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "Out",
+            -250.5,
+            749.5
+          ]
+        ]
+      },
+      {
+        "sheet": "Savings B",
+        "range": "Savings B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "In",
+            250.5,
+            250.5
+          ],
+          [
+            "2026-03-01",
+            "Transfer",
+            "Out",
+            -500,
+            -249.5
+          ]
+        ]
+      },
+      {
+        "sheet": "School Fund",
+        "range": "School Fund!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-03-01",
+            "Transfer",
+            "In",
+            500,
+            500
+          ]
+        ]
+      }
+    ],
+    "plan.add": [
+      {
+        "sheet": "Plan",
+        "range": "Plan!A1",
+        "headers": [
+          "Step",
+          "Item",
+          "Status",
+          "Notes",
+          "Version"
+        ],
+        "rows": [
+          [
+            "1",
+            "Item one",
+            "Done",
+            "a note",
+            "v1"
+          ],
+          [
+            "2",
+            "Item two",
+            "Not started",
+            "",
+            ""
+          ],
+          [
+            "3",
+            "Item three",
+            "In progress",
+            "",
+            ""
+          ],
+          [
+            "2",
+            "ZZ crud item",
+            "In progress",
+            "ZZ note",
+            "v9"
+          ]
+        ]
+      }
+    ],
+    "plan.edit": [
+      {
+        "sheet": "Plan",
+        "range": "Plan!A1",
+        "headers": [
+          "Step",
+          "Item",
+          "Status",
+          "Notes",
+          "Version"
+        ],
+        "rows": [
+          [
+            "1",
+            "Item one",
+            "Done",
+            "a note",
+            "v1"
+          ],
+          [
+            "2",
+            "Item two",
+            "Not started",
+            "",
+            ""
+          ],
+          [
+            "3",
+            "Item three",
+            "In progress",
+            "",
+            ""
+          ],
+          [
+            "2",
+            "ZZ crud item v2",
+            "Done",
+            "ZZ note",
+            "v9"
+          ]
+        ]
+      }
+    ],
+    "plan.delete": [
+      {
+        "sheet": "Plan",
+        "range": "Plan!A1",
+        "headers": [
+          "Step",
+          "Item",
+          "Status",
+          "Notes",
+          "Version"
+        ],
+        "rows": [
+          [
+            "1",
+            "Item one",
+            "Done",
+            "a note",
+            "v1"
+          ],
+          [
+            "2",
+            "Item two",
+            "Not started",
+            "",
+            ""
+          ],
+          [
+            "3",
+            "Item three",
+            "In progress",
+            "",
+            ""
+          ]
+        ]
+      }
+    ],
+    "gold.add": [
+      {
+        "sheet": "Gold",
+        "range": "Gold!A1",
+        "headers": [
+          "Quantity",
+          "Type",
+          "Brand",
+          "Weight (gm)",
+          "Where",
+          "Purchase Price per Gram (EGP)",
+          "Purchase Date",
+          "Current Price per Gram (EGP)",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            2,
+            "Gold 24",
+            "Brand X",
+            5,
+            "Vault",
+            3000,
+            "2024-03-21",
+            4000,
+            "2026-07-29",
+            "Saving > Other"
+          ],
+          [
+            1,
+            "Gold 21",
+            "Brand Y",
+            10,
+            "Home",
+            5000,
+            "2025-01-01",
+            4000,
+            "2026-07-29",
+            "Saving > Other"
+          ],
+          [
+            3,
+            "ZZ Gold",
+            "ZZ Brand",
+            2,
+            "ZZ Vault",
+            1000,
+            "2026-05-05",
+            4000,
+            "2026-07-29",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "gold.edit": [
+      {
+        "sheet": "Gold",
+        "range": "Gold!A1",
+        "headers": [
+          "Quantity",
+          "Type",
+          "Brand",
+          "Weight (gm)",
+          "Where",
+          "Purchase Price per Gram (EGP)",
+          "Purchase Date",
+          "Current Price per Gram (EGP)",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            2,
+            "Gold 24",
+            "Brand X",
+            5,
+            "Vault",
+            3000,
+            "2024-03-21",
+            4000,
+            "2026-07-29",
+            "Saving > Other"
+          ],
+          [
+            1,
+            "Gold 21",
+            "Brand Y",
+            10,
+            "Home",
+            5000,
+            "2025-01-01",
+            4000,
+            "2026-07-29",
+            "Saving > Other"
+          ],
+          [
+            4,
+            "ZZ Gold",
+            "ZZ Brand",
+            2,
+            "ZZ Vault 2",
+            1000,
+            "2026-05-05",
+            4000,
+            "2026-07-29",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "gold.delete": [
+      {
+        "sheet": "Gold",
+        "range": "Gold!A1",
+        "headers": [
+          "Quantity",
+          "Type",
+          "Brand",
+          "Weight (gm)",
+          "Where",
+          "Purchase Price per Gram (EGP)",
+          "Purchase Date",
+          "Current Price per Gram (EGP)",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            2,
+            "Gold 24",
+            "Brand X",
+            5,
+            "Vault",
+            3000,
+            "2024-03-21",
+            4000,
+            "2026-07-29",
+            "Saving > Other"
+          ],
+          [
+            1,
+            "Gold 21",
+            "Brand Y",
+            10,
+            "Home",
+            5000,
+            "2025-01-01",
+            4000,
+            "2026-07-29",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "certs.add": [
+      {
+        "sheet": "Certificates",
+        "range": "Certificates!A1",
+        "headers": [
+          "Certificate Number",
+          "Product Name",
+          "Open Date",
+          "Amount",
+          "Currency",
+          "Interest Frequency",
+          "Maturity Date",
+          "Interest Rate",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "C-001",
+            "Example cert EGP",
+            "2024-02-13",
+            100000,
+            "EGP",
+            "1 Year",
+            "2026-09-01",
+            0.2,
+            "Saving > Other"
+          ],
+          [
+            "C-002",
+            "Example cert USD",
+            "2023-11-06",
+            1000,
+            "USD",
+            "3 Month",
+            "2026-11-07",
+            0.1,
+            "Saving > Other"
+          ],
+          [
+            "ZZ-1",
+            "ZZ Cert",
+            "2026-01-02",
+            5000,
+            "EGP",
+            "1 Year",
+            "2027-01-02",
+            0.125,
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "certs.edit": [
+      {
+        "sheet": "Certificates",
+        "range": "Certificates!A1",
+        "headers": [
+          "Certificate Number",
+          "Product Name",
+          "Open Date",
+          "Amount",
+          "Currency",
+          "Interest Frequency",
+          "Maturity Date",
+          "Interest Rate",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "C-001",
+            "Example cert EGP",
+            "2024-02-13",
+            100000,
+            "EGP",
+            "1 Year",
+            "2026-09-01",
+            0.2,
+            "Saving > Other"
+          ],
+          [
+            "C-002",
+            "Example cert USD",
+            "2023-11-06",
+            1000,
+            "USD",
+            "3 Month",
+            "2026-11-07",
+            0.1,
+            "Saving > Other"
+          ],
+          [
+            "ZZ-1",
+            "ZZ Cert",
+            "2026-01-02",
+            6000,
+            "EGP",
+            "1 Year",
+            "2027-01-02",
+            0.1,
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "certs.delete": [
+      {
+        "sheet": "Certificates",
+        "range": "Certificates!A1",
+        "headers": [
+          "Certificate Number",
+          "Product Name",
+          "Open Date",
+          "Amount",
+          "Currency",
+          "Interest Frequency",
+          "Maturity Date",
+          "Interest Rate",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "C-001",
+            "Example cert EGP",
+            "2024-02-13",
+            100000,
+            "EGP",
+            "1 Year",
+            "2026-09-01",
+            0.2,
+            "Saving > Other"
+          ],
+          [
+            "C-002",
+            "Example cert USD",
+            "2023-11-06",
+            1000,
+            "USD",
+            "3 Month",
+            "2026-11-07",
+            0.1,
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "holdings.add": [
+      {
+        "sheet": "Stock Holdings",
+        "range": "Stock Holdings!A1",
+        "headers": [
+          "Source",
+          "Label",
+          "Quantity",
+          "Cost Basis (USD)",
+          "Acquired Date"
+        ],
+        "rows": [
+          [
+            "Vested RSU",
+            "RSU lot",
+            100,
+            1500,
+            "2026-03-03"
+          ],
+          [
+            "ESPP",
+            "ESPP lot",
+            50,
+            500,
+            "2025-06-01"
+          ],
+          [
+            "ESPP",
+            "ZZ Lot",
+            7,
+            700,
+            "2026-02-02"
+          ]
+        ]
+      }
+    ],
+    "holdings.edit": [
+      {
+        "sheet": "Stock Holdings",
+        "range": "Stock Holdings!A1",
+        "headers": [
+          "Source",
+          "Label",
+          "Quantity",
+          "Cost Basis (USD)",
+          "Acquired Date"
+        ],
+        "rows": [
+          [
+            "Vested RSU",
+            "RSU lot",
+            100,
+            1500,
+            "2026-03-03"
+          ],
+          [
+            "ESPP",
+            "ESPP lot",
+            50,
+            500,
+            "2025-06-01"
+          ],
+          [
+            "ESPP",
+            "ZZ Lot v2",
+            8,
+            700,
+            "2026-02-02"
+          ]
+        ]
+      }
+    ],
+    "holdings.delete": [
+      {
+        "sheet": "Stock Holdings",
+        "range": "Stock Holdings!A1",
+        "headers": [
+          "Source",
+          "Label",
+          "Quantity",
+          "Cost Basis (USD)",
+          "Acquired Date"
+        ],
+        "rows": [
+          [
+            "Vested RSU",
+            "RSU lot",
+            100,
+            1500,
+            "2026-03-03"
+          ],
+          [
+            "ESPP",
+            "ESPP lot",
+            50,
+            500,
+            "2025-06-01"
+          ]
+        ]
+      }
+    ],
+    "vesting.add": [
+      {
+        "sheet": "Stock Vesting",
+        "range": "Stock Vesting!A1",
+        "headers": [
+          "Vest Date",
+          "Grant",
+          "Units"
+        ],
+        "rows": [
+          [
+            "2027-01-15",
+            "G-1",
+            200
+          ],
+          [
+            "2028-01-15",
+            "G-2",
+            300
+          ],
+          [
+            "2029-06-01",
+            "ZZ-G",
+            42
+          ]
+        ]
+      }
+    ],
+    "vesting.edit": [
+      {
+        "sheet": "Stock Vesting",
+        "range": "Stock Vesting!A1",
+        "headers": [
+          "Vest Date",
+          "Grant",
+          "Units"
+        ],
+        "rows": [
+          [
+            "2027-01-15",
+            "G-1",
+            200
+          ],
+          [
+            "2028-01-15",
+            "G-2",
+            300
+          ],
+          [
+            "2029-06-01",
+            "ZZ-G",
+            43
+          ]
+        ]
+      }
+    ],
+    "vesting.delete": [
+      {
+        "sheet": "Stock Vesting",
+        "range": "Stock Vesting!A1",
+        "headers": [
+          "Vest Date",
+          "Grant",
+          "Units"
+        ],
+        "rows": [
+          [
+            "2027-01-15",
+            "G-1",
+            200
+          ],
+          [
+            "2028-01-15",
+            "G-2",
+            300
+          ]
+        ]
+      }
+    ],
+    "accounts.add": [
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "Bank A",
+            "Alex",
+            "Spending"
+          ],
+          [
+            "Savings B",
+            "Sam",
+            "Saving > Other"
+          ],
+          [
+            "School Fund",
+            "Alex",
+            "Saving > School"
+          ],
+          [
+            "ZZ Account",
+            "ZZ Owner",
+            "Saving > Other"
+          ]
+        ]
+      },
+      {
+        "sheet": "Bank A",
+        "range": "Bank A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-01-05",
+            "Opening balance",
+            "In",
+            1000,
+            1000
+          ],
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "Out",
+            -250.5,
+            749.5
+          ]
+        ]
+      },
+      {
+        "sheet": "Savings B",
+        "range": "Savings B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "In",
+            250.5,
+            250.5
+          ],
+          [
+            "2026-03-01",
+            "Transfer",
+            "Out",
+            -500,
+            -249.5
+          ]
+        ]
+      },
+      {
+        "sheet": "School Fund",
+        "range": "School Fund!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-03-01",
+            "Transfer",
+            "In",
+            500,
+            500
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Account",
+        "range": "ZZ Account!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      }
+    ],
+    "accounts.edit": [
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "Bank A",
+            "Alex",
+            "Spending"
+          ],
+          [
+            "Savings B",
+            "Sam",
+            "Saving > Other"
+          ],
+          [
+            "School Fund",
+            "Alex",
+            "Saving > School"
+          ],
+          [
+            "ZZ Account v2",
+            "ZZ Owner",
+            "Saving > Other"
+          ]
+        ]
+      },
+      {
+        "sheet": "Bank A",
+        "range": "Bank A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-01-05",
+            "Opening balance",
+            "In",
+            1000,
+            1000
+          ],
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "Out",
+            -250.5,
+            749.5
+          ]
+        ]
+      },
+      {
+        "sheet": "Savings B",
+        "range": "Savings B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-02-10",
+            "Groceries & stuff <b>",
+            "In",
+            250.5,
+            250.5
+          ],
+          [
+            "2026-03-01",
+            "Transfer",
+            "Out",
+            -500,
+            -249.5
+          ]
+        ]
+      },
+      {
+        "sheet": "School Fund",
+        "range": "School Fund!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-03-01",
+            "Transfer",
+            "In",
+            500,
+            500
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Account v2",
+        "range": "ZZ Account v2!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      }
+    ],
+    "accounts.delete": [
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "Bank A",
+            "Alex",
+            "Spending"
+          ],
+          [
+            "Savings B",
+            "Sam",
+            "Saving > Other"
+          ],
+          [
+            "School Fund",
+            "Alex",
+            "Saving > School"
+          ]
+        ]
+      }
+    ],
+    "pf.first": [
+      {
+        "sheet": "Provident Fund",
+        "range": "Provident Fund!A1",
+        "headers": [
+          "Balance",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            123456,
+            "2026-06-06",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "pf.second": [
+      {
+        "sheet": "Provident Fund",
+        "range": "Provident Fund!A1",
+        "headers": [
+          "Balance",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            223456,
+            "2026-07-07",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ]
+  },
+  "empty": {
+    "setup": [
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ Acct A",
+            "ZZ Owner",
+            "Saving > Other"
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Acct A",
+        "range": "ZZ Acct A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ Acct A",
+            "ZZ Owner",
+            "Saving > Other"
+          ],
+          [
+            "ZZ Acct B",
+            "ZZ Owner",
+            "Saving > Other"
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Acct A",
+        "range": "ZZ Acct A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "ZZ Acct B",
+        "range": "ZZ Acct B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "Transaction Types",
+        "range": "Transaction Types!A1",
+        "headers": [
+          "Transaction Type"
+        ],
+        "rows": [
+          [
+            "ZZ Type"
+          ]
+        ]
+      }
+    ],
+    "types.add": [
+      {
+        "sheet": "Transaction Types",
+        "range": "Transaction Types!A1",
+        "headers": [
+          "Transaction Type"
+        ],
+        "rows": [
+          [
+            "ZZ Type"
+          ],
+          [
+            "ZZ Type X"
+          ]
+        ]
+      }
+    ],
+    "types.edit": [
+      {
+        "sheet": "Transaction Types",
+        "range": "Transaction Types!A1",
+        "headers": [
+          "Transaction Type"
+        ],
+        "rows": [
+          [
+            "ZZ Type"
+          ],
+          [
+            "ZZ Type X v2"
+          ]
+        ]
+      }
+    ],
+    "types.delete": [
+      {
+        "sheet": "Transaction Types",
+        "range": "Transaction Types!A1",
+        "headers": [
+          "Transaction Type"
+        ],
+        "rows": [
+          [
+            "ZZ Type"
+          ]
+        ]
+      }
+    ],
+    "tags.add": [
+      {
+        "sheet": "Tags",
+        "range": "Tags!A1",
+        "headers": [
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ Tag X"
+          ]
+        ]
+      }
+    ],
+    "tags.edit": [
+      {
+        "sheet": "Tags",
+        "range": "Tags!A1",
+        "headers": [
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ Tag X v2"
+          ]
+        ]
+      }
+    ],
+    "tags.delete": [
+      {
+        "sheet": "Tags",
+        "range": "Tags!A1",
+        "headers": [
+          "Tag"
+        ],
+        "rows": []
+      }
+    ],
+    "transactions.add": [
+      {
+        "sheet": "Transactions",
+        "range": "Transactions!A1",
+        "headers": [
+          "Date",
+          "Amount",
+          "Description",
+          "Transaction Type",
+          "From Account",
+          "To Account"
+        ],
+        "rows": [
+          [
+            "2026-04-15",
+            "1234.5",
+            "ZZ crud add",
+            "ZZ Type",
+            "ZZ Acct A",
+            "ZZ Acct B"
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Acct A",
+        "range": "ZZ Acct A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-04-15",
+            "ZZ crud add",
+            "Out",
+            -1234.5,
+            -1234.5
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Acct B",
+        "range": "ZZ Acct B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-04-15",
+            "ZZ crud add",
+            "In",
+            1234.5,
+            1234.5
+          ]
+        ]
+      }
+    ],
+    "transactions.edit": [
+      {
+        "sheet": "Transactions",
+        "range": "Transactions!A1",
+        "headers": [
+          "Date",
+          "Amount",
+          "Description",
+          "Transaction Type",
+          "From Account",
+          "To Account"
+        ],
+        "rows": [
+          [
+            "2026-04-15",
+            "2000",
+            "ZZ crud edit",
+            "ZZ Type",
+            "ZZ Acct A",
+            "ZZ Acct B"
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Acct A",
+        "range": "ZZ Acct A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-04-15",
+            "ZZ crud edit",
+            "Out",
+            -2000,
+            -2000
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Acct B",
+        "range": "ZZ Acct B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": [
+          [
+            "2026-04-15",
+            "ZZ crud edit",
+            "In",
+            2000,
+            2000
+          ]
+        ]
+      }
+    ],
+    "transactions.delete": [
+      {
+        "sheet": "Transactions",
+        "range": "Transactions!A1",
+        "headers": [
+          "Date",
+          "Amount",
+          "Description",
+          "Transaction Type",
+          "From Account",
+          "To Account"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "ZZ Acct A",
+        "range": "ZZ Acct A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "ZZ Acct B",
+        "range": "ZZ Acct B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      }
+    ],
+    "plan.add": [
+      {
+        "sheet": "Plan",
+        "range": "Plan!A1",
+        "headers": [
+          "Step",
+          "Item",
+          "Status",
+          "Notes",
+          "Version"
+        ],
+        "rows": [
+          [
+            "2",
+            "ZZ crud item",
+            "In progress",
+            "ZZ note",
+            "v9"
+          ]
+        ]
+      }
+    ],
+    "plan.edit": [
+      {
+        "sheet": "Plan",
+        "range": "Plan!A1",
+        "headers": [
+          "Step",
+          "Item",
+          "Status",
+          "Notes",
+          "Version"
+        ],
+        "rows": [
+          [
+            "2",
+            "ZZ crud item v2",
+            "Done",
+            "ZZ note",
+            "v9"
+          ]
+        ]
+      }
+    ],
+    "plan.delete": [
+      {
+        "sheet": "Plan",
+        "range": "Plan!A1",
+        "headers": [
+          "Step",
+          "Item",
+          "Status",
+          "Notes",
+          "Version"
+        ],
+        "rows": []
+      }
+    ],
+    "gold.add": [
+      {
+        "sheet": "Gold",
+        "range": "Gold!A1",
+        "headers": [
+          "Quantity",
+          "Type",
+          "Brand",
+          "Weight (gm)",
+          "Where",
+          "Purchase Price per Gram (EGP)",
+          "Purchase Date",
+          "Current Price per Gram (EGP)",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            3,
+            "ZZ Gold",
+            "ZZ Brand",
+            2,
+            "ZZ Vault",
+            1000,
+            "2026-05-05",
+            0,
+            "2026-05-05",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "gold.edit": [
+      {
+        "sheet": "Gold",
+        "range": "Gold!A1",
+        "headers": [
+          "Quantity",
+          "Type",
+          "Brand",
+          "Weight (gm)",
+          "Where",
+          "Purchase Price per Gram (EGP)",
+          "Purchase Date",
+          "Current Price per Gram (EGP)",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            4,
+            "ZZ Gold",
+            "ZZ Brand",
+            2,
+            "ZZ Vault 2",
+            1000,
+            "2026-05-05",
+            0,
+            "2026-05-05",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "gold.delete": [
+      {
+        "sheet": "Gold",
+        "range": "Gold!A1",
+        "headers": [
+          "Quantity",
+          "Type",
+          "Brand",
+          "Weight (gm)",
+          "Where",
+          "Purchase Price per Gram (EGP)",
+          "Purchase Date",
+          "Current Price per Gram (EGP)",
+          "As Of",
+          "Tag"
+        ],
+        "rows": []
+      }
+    ],
+    "certs.add": [
+      {
+        "sheet": "Certificates",
+        "range": "Certificates!A1",
+        "headers": [
+          "Certificate Number",
+          "Product Name",
+          "Open Date",
+          "Amount",
+          "Currency",
+          "Interest Frequency",
+          "Maturity Date",
+          "Interest Rate",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ-1",
+            "ZZ Cert",
+            "2026-01-02",
+            5000,
+            "EGP",
+            "1 Year",
+            "2027-01-02",
+            0.125,
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "certs.edit": [
+      {
+        "sheet": "Certificates",
+        "range": "Certificates!A1",
+        "headers": [
+          "Certificate Number",
+          "Product Name",
+          "Open Date",
+          "Amount",
+          "Currency",
+          "Interest Frequency",
+          "Maturity Date",
+          "Interest Rate",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ-1",
+            "ZZ Cert",
+            "2026-01-02",
+            6000,
+            "EGP",
+            "1 Year",
+            "2027-01-02",
+            0.1,
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "certs.delete": [
+      {
+        "sheet": "Certificates",
+        "range": "Certificates!A1",
+        "headers": [
+          "Certificate Number",
+          "Product Name",
+          "Open Date",
+          "Amount",
+          "Currency",
+          "Interest Frequency",
+          "Maturity Date",
+          "Interest Rate",
+          "Tag"
+        ],
+        "rows": []
+      }
+    ],
+    "holdings.add": [
+      {
+        "sheet": "Stock Holdings",
+        "range": "Stock Holdings!A1",
+        "headers": [
+          "Source",
+          "Label",
+          "Quantity",
+          "Cost Basis (USD)",
+          "Acquired Date"
+        ],
+        "rows": [
+          [
+            "ESPP",
+            "ZZ Lot",
+            7,
+            700,
+            "2026-02-02"
+          ]
+        ]
+      }
+    ],
+    "holdings.edit": [
+      {
+        "sheet": "Stock Holdings",
+        "range": "Stock Holdings!A1",
+        "headers": [
+          "Source",
+          "Label",
+          "Quantity",
+          "Cost Basis (USD)",
+          "Acquired Date"
+        ],
+        "rows": [
+          [
+            "ESPP",
+            "ZZ Lot v2",
+            8,
+            700,
+            "2026-02-02"
+          ]
+        ]
+      }
+    ],
+    "holdings.delete": [
+      {
+        "sheet": "Stock Holdings",
+        "range": "Stock Holdings!A1",
+        "headers": [
+          "Source",
+          "Label",
+          "Quantity",
+          "Cost Basis (USD)",
+          "Acquired Date"
+        ],
+        "rows": []
+      }
+    ],
+    "vesting.add": [
+      {
+        "sheet": "Stock Vesting",
+        "range": "Stock Vesting!A1",
+        "headers": [
+          "Vest Date",
+          "Grant",
+          "Units"
+        ],
+        "rows": [
+          [
+            "2029-06-01",
+            "ZZ-G",
+            42
+          ]
+        ]
+      }
+    ],
+    "vesting.edit": [
+      {
+        "sheet": "Stock Vesting",
+        "range": "Stock Vesting!A1",
+        "headers": [
+          "Vest Date",
+          "Grant",
+          "Units"
+        ],
+        "rows": [
+          [
+            "2029-06-01",
+            "ZZ-G",
+            43
+          ]
+        ]
+      }
+    ],
+    "vesting.delete": [
+      {
+        "sheet": "Stock Vesting",
+        "range": "Stock Vesting!A1",
+        "headers": [
+          "Vest Date",
+          "Grant",
+          "Units"
+        ],
+        "rows": []
+      }
+    ],
+    "accounts.add": [
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ Acct A",
+            "ZZ Owner",
+            "Saving > Other"
+          ],
+          [
+            "ZZ Acct B",
+            "ZZ Owner",
+            "Saving > Other"
+          ],
+          [
+            "ZZ Account",
+            "ZZ Owner",
+            "Saving > Other"
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Acct A",
+        "range": "ZZ Acct A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "ZZ Acct B",
+        "range": "ZZ Acct B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "ZZ Account",
+        "range": "ZZ Account!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      }
+    ],
+    "accounts.edit": [
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ Acct A",
+            "ZZ Owner",
+            "Saving > Other"
+          ],
+          [
+            "ZZ Acct B",
+            "ZZ Owner",
+            "Saving > Other"
+          ],
+          [
+            "ZZ Account v2",
+            "ZZ Owner",
+            "Saving > Other"
+          ]
+        ]
+      },
+      {
+        "sheet": "ZZ Acct A",
+        "range": "ZZ Acct A!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "ZZ Acct B",
+        "range": "ZZ Acct B!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "ZZ Account v2",
+        "range": "ZZ Account v2!A1",
+        "headers": [
+          "Date",
+          "Description",
+          "Transaction Type",
+          "Amount",
+          "Balance"
+        ],
+        "rows": []
+      }
+    ],
+    "accounts.delete": [
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ Acct A",
+            "ZZ Owner",
+            "Saving > Other"
+          ],
+          [
+            "ZZ Acct B",
+            "ZZ Owner",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "pf.first": [
+      {
+        "sheet": "Provident Fund",
+        "range": "Provident Fund!A1",
+        "headers": [
+          "Balance",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            123456,
+            "2026-06-06",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "pf.second": [
+      {
+        "sheet": "Provident Fund",
+        "range": "Provident Fund!A1",
+        "headers": [
+          "Balance",
+          "As Of",
+          "Tag"
+        ],
+        "rows": [
+          [
+            223456,
+            "2026-07-07",
+            "Saving > Other"
+          ]
+        ]
+      }
+    ],
+    "teardown": [
+      {
+        "sheet": "Transaction Types",
+        "range": "Transaction Types!A1",
+        "headers": [
+          "Transaction Type"
+        ],
+        "rows": []
+      },
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": [
+          [
+            "ZZ Acct A",
+            "ZZ Owner",
+            "Saving > Other"
+          ]
+        ]
+      },
+      {
+        "sheet": "Accounts",
+        "range": "Accounts!A1",
+        "headers": [
+          "Account Name",
+          "Owner",
+          "Tag"
+        ],
+        "rows": []
+      }
+    ]
+  }
+}

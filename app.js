@@ -5,7 +5,7 @@
  * rebuilds the sidebar and the active screen from template literals.
  *
  * Sections, in order:
- *   1. Constants & seed data      6. View helpers
+ *   1. Constants & descriptors    6. View helpers
  *   2. Formatting helpers         7. Screen views
  *   3. State                      8. Render (focus/scroll preservation)
  *   4. Auth & Sheets API          9. Actions & field handlers
@@ -40,6 +40,220 @@
   var SCENARIO_MIN = 10;
   var SCENARIO_MAX = 80;
   var MATURITY_WATCH_DAYS = 60;
+
+  /* --- entity descriptors ---
+   *
+   * One descriptor per repetitive entity: the single place that knows a sheet's
+   * name and header order, which state keys hold the list and the form, what an
+   * empty form looks like, and how a record and a form convert into each other.
+   * Section 9 generates edit / cancel / delete from it, generates submit too when
+   * `validate` and `toRecord` are present, and generates the one-line `fields`
+   * entries from `fields`.
+   *
+   * Two entities are deliberately absent:
+   *   Accounts — its records are Sheet *tabs*. Saving renames one, adding creates
+   *     one, deleting removes one, and three parallel maps go out as a single
+   *     sheet. A descriptor able to express that costs more than the duplication.
+   *   Provident Fund — a single record: no index, no list, no delete and no mode,
+   *     so edit/delete have nothing to generalise over.
+   * Both stay written out by hand in section 9.
+   *
+   * Keys:
+   *   act        the name in the markup — edit<act>, cancel<act>Form,
+   *              submit<act>Form, delete<act>.
+   *   list/form  the state keys holding the rows and the form.
+   *   emptyForm  returns a *fresh* blank form; it is the initial value in section
+   *              3, what Cancel restores, and what a successful save leaves behind.
+   *   toForm     record -> form fields (mode and index are added by the handler).
+   *   toRecord   form -> the item stored in state[list].
+   *   toRow      state item -> the object writeSheet() projects through `headers`.
+   *              Omitted where the state item is already that record.
+   *   validate   form -> null to save, a message to show, '' to abort silently.
+   *   fields     data-f attribute -> the form key it sets.
+   *   after      runs after a successful write (transactions invalidate ledgers).
+   *   confirmDelete  item -> the prompt to raise before deleting it.
+   */
+  var ENTITIES = {
+    types: {
+      act: 'Type',
+      sheet: 'Transaction Types',
+      headers: ['Transaction Type'],
+      list: 'types', form: 'typeForm',
+      emptyForm: function () { return { mode: 'add', index: -1, name: '' }; },
+      toForm: function (name) { return { name: name }; },
+      toRecord: function (f) { return f.name.trim(); },
+      toRow: function (name) { return { 'Transaction Type': name }; },
+      validate: function (f, list) {
+        var name = f.name.trim();
+        if (!name) return '';
+        if (f.mode !== 'edit' && list.indexOf(name) !== -1) return 'Type already exists.';
+        return null;
+      },
+      fields: { typeName: 'name' },
+    },
+
+    tags: {
+      act: 'Tag',
+      sheet: 'Tags',
+      headers: ['Tag'],
+      list: 'tags', form: 'tagForm',
+      emptyForm: function () { return { mode: 'add', index: -1, name: '' }; },
+      toForm: function (name) { return { name: name }; },
+      toRecord: function (f) { return f.name.trim(); },
+      toRow: function (name) { return { Tag: name }; },
+      validate: function (f, list) {
+        var name = f.name.trim();
+        if (!name) return '';
+        if (f.mode !== 'edit' && list.indexOf(name) !== -1) return 'Tag already exists.';
+        return null;
+      },
+      confirmDelete: function (name) {
+        return 'Delete tag "' + name + '"? Items using it keep the old label until re-tagged.';
+      },
+      fields: { tagName: 'name' },
+    },
+
+    transactions: {
+      act: 'Tx',
+      sheet: 'Transactions',
+      headers: TX_HEADERS,
+      list: 'transactions', form: 'txForm',
+      emptyForm: function () {
+        return { mode: 'add', index: -1, date: '', amount: '', description: '', type: '', from: '', to: '' };
+      },
+      toForm: function (t) {
+        return {
+          date: t.Date, amount: formatAmountDisplay(t.Amount), description: t.Description,
+          type: t['Transaction Type'], from: t['From Account'], to: t['To Account'],
+        };
+      },
+      /* Every balance is derived from this sheet, so a write invalidates all of
+         them. submitTxForm is written out in section 9: the To-Account rule. */
+      after: function () { return recomputeAndWriteAllLedgers(); },
+      fields: { txType: 'type', txDate: 'date', txDescription: 'description', txFrom: 'from', txTo: 'to' },
+    },
+
+    plan: {
+      act: 'Plan',
+      sheet: 'Plan',
+      headers: PLAN_HEADERS,
+      list: 'planItems', form: 'planForm',
+      emptyForm: function () {
+        return { mode: 'add', index: -1, step: '1', item: '', status: 'Not started', notes: '', version: '' };
+      },
+      toForm: function (p) {
+        return { step: p.Step, item: p.Item, status: p.Status, notes: p.Notes || '', version: p.Version || '' };
+      },
+      toRecord: function (f) {
+        return { Step: f.step, Item: f.item.trim(), Status: f.status, Notes: f.notes.trim(), Version: f.version.trim() };
+      },
+      validate: function (f) { return f.item.trim() ? null : ''; },
+      fields: { planStep: 'step', planItem: 'item', planStatus: 'status', planNotes: 'notes', planVersion: 'version' },
+    },
+
+    gold: {
+      act: 'Gold',
+      sheet: 'Gold',
+      headers: GOLD_HEADERS,
+      list: 'goldItems', form: 'goldForm',
+      emptyForm: function () {
+        return {
+          mode: 'add', index: -1, quantity: '', type: '', brand: '', weight: '', where: '',
+          purchasePrice: '', purchaseDate: '', currentPrice: '', asOf: '', tag: TAG_SAVING_OTHER,
+        };
+      },
+      toForm: function (it) {
+        return {
+          quantity: String(it.Quantity), type: it.Type, brand: it.Brand || '',
+          weight: String(it['Weight (gm)']), where: it.Where || '',
+          purchasePrice: String(it['Purchase Price per Gram (EGP)']), purchaseDate: it['Purchase Date'],
+          currentPrice: String(it['Current Price per Gram (EGP)']), asOf: it['As Of'],
+          tag: it.Tag || TAG_SAVING_OTHER,
+        };
+      },
+      /* submitGoldForm is written out in section 9: a lot saved with no current
+         price inherits one from the most recently priced lot. */
+      fields: {
+        goldQuantity: 'quantity', goldType: 'type', goldBrand: 'brand', goldWeight: 'weight',
+        goldWhere: 'where', goldPurchasePrice: 'purchasePrice', goldPurchaseDate: 'purchaseDate',
+        goldTag: 'tag',
+      },
+    },
+
+    certs: {
+      act: 'Cert',
+      sheet: 'Certificates',
+      headers: CERT_HEADERS,
+      list: 'certItems', form: 'certForm',
+      emptyForm: function () {
+        return {
+          mode: 'add', index: -1, number: '', product: '', openDate: '', amount: '',
+          currency: '', frequency: '', maturityDate: '', rate: '', tag: TAG_SAVING_OTHER,
+        };
+      },
+      toForm: function (c) {
+        return {
+          number: c['Certificate Number'], product: c['Product Name'], openDate: c['Open Date'],
+          amount: String(c.Amount), currency: c.Currency, frequency: c['Interest Frequency'],
+          maturityDate: c['Maturity Date'], rate: String((parseFloat(c['Interest Rate']) || 0) * 100),
+          tag: c.Tag || TAG_SAVING_OTHER,
+        };
+      },
+      /* submitCertForm is written out in section 9: the form takes a percentage,
+         the sheet stores a fraction. */
+      fields: {
+        certNumber: 'number', certProduct: 'product', certOpenDate: 'openDate', certAmount: 'amount',
+        certFrequency: 'frequency', certMaturityDate: 'maturityDate', certRate: 'rate', certTag: 'tag',
+      },
+    },
+
+    holdings: {
+      act: 'Holding',
+      sheet: 'Stock Holdings',
+      headers: STOCK_HOLDINGS_HEADERS,
+      list: 'stockHoldings', form: 'holdingForm',
+      emptyForm: function () {
+        return { mode: 'add', index: -1, source: 'Vested RSU', label: '', quantity: '', cost: '', acquired: '' };
+      },
+      toForm: function (h) {
+        return {
+          source: h.Source || 'Vested RSU', label: h.Label || '', quantity: String(h.Quantity),
+          cost: String(h['Cost Basis (USD)']), acquired: h['Acquired Date'] || '',
+        };
+      },
+      toRecord: function (f) {
+        return {
+          Source: f.source, Label: f.label.trim(), Quantity: parseFloat(f.quantity),
+          'Cost Basis (USD)': parseFloat(f.cost), 'Acquired Date': f.acquired,
+        };
+      },
+      validate: function (f) {
+        return (!parseFloat(f.quantity) || isNaN(parseFloat(f.cost))) ? 'Quantity and Cost Basis are required.' : null;
+      },
+      fields: {
+        holdingSource: 'source', holdingLabel: 'label', holdingQuantity: 'quantity',
+        holdingCost: 'cost', holdingAcquired: 'acquired',
+      },
+    },
+
+    vesting: {
+      act: 'Vesting',
+      sheet: 'Stock Vesting',
+      headers: STOCK_VESTING_HEADERS,
+      list: 'stockVesting', form: 'vestingForm',
+      emptyForm: function () { return { mode: 'add', index: -1, date: '', grant: '', units: '' }; },
+      toForm: function (vest) {
+        return { date: vest['Vest Date'] || '', grant: vest.Grant || '', units: String(vest.Units) };
+      },
+      toRecord: function (f) {
+        return { 'Vest Date': f.date, Grant: f.grant.trim(), Units: parseFloat(f.units) };
+      },
+      validate: function (f) {
+        return (!f.date || !parseFloat(f.units)) ? 'Vest Date and Units are required.' : null;
+      },
+      fields: { vestingDate: 'date', vestingGrant: 'grant', vestingUnits: 'units' },
+    },
+  };
 
   /* -------------------------------------------------- 2. formatting ----- */
 
@@ -119,17 +333,17 @@
     spendingNavOpen: true,
     accountSettingsOpen: true,
     recentTxOpen: false,
-    typeForm: { mode: 'add', index: -1, name: '' },
+    typeForm: ENTITIES.types.emptyForm(),
     tags: [],
-    tagForm: { mode: 'add', index: -1, name: '' },
-    txForm: { mode: 'add', index: -1, date: '', amount: '', description: '', type: '', from: '', to: '' },
+    tagForm: ENTITIES.tags.emptyForm(),
+    txForm: ENTITIES.transactions.emptyForm(),
     planItems: [],
-    planForm: { mode: 'add', index: -1, step: '1', item: '', status: 'Not started', notes: '', version: '' },
+    planForm: ENTITIES.plan.emptyForm(),
     goldItems: [],
-    goldForm: { mode: 'add', index: -1, quantity: '', type: '', brand: '', weight: '', where: '', purchasePrice: '', purchaseDate: '', currentPrice: '', asOf: '', tag: TAG_SAVING_OTHER },
+    goldForm: ENTITIES.gold.emptyForm(),
     goldPriceForm: { currentPrice: '', asOf: '' },
     certItems: [],
-    certForm: { mode: 'add', index: -1, number: '', product: '', openDate: '', amount: '', currency: '', frequency: '', maturityDate: '', rate: '', tag: TAG_SAVING_OTHER },
+    certForm: ENTITIES.certs.emptyForm(),
     rates: [],
     rateForm: { currency: '', rate: '', asOf: '' },
     providentFund: null,
@@ -139,8 +353,8 @@
     stockVesting: [],
     stockTab: 'overview',
     stockScenarioPrice: null,
-    holdingForm: { mode: 'add', index: -1, source: 'Vested RSU', label: '', quantity: '', cost: '', acquired: '' },
-    vestingForm: { mode: 'add', index: -1, date: '', grant: '', units: '' },
+    holdingForm: ENTITIES.holdings.emptyForm(),
+    vestingForm: ENTITIES.vesting.emptyForm(),
     stockPriceForm: { symbol: '', currentPrice: '', cash: '', asOf: '' },
     dashCurrencyOpen: true,
     goldTab: 'overview',
@@ -1686,6 +1900,84 @@
     return list.filter(function (_, i) { return i !== index; });
   }
 
+  /* --- descriptor-driven CRUD ---
+     The four handlers every entity in ENTITIES needs, derived from its descriptor
+     rather than written out ten times over. Only `submit` varies enough to be
+     worth spelling out per entity, and only for three of them. */
+
+  function sheetRows(desc, list) {
+    return desc.toRow ? list.map(function (item) { return desc.toRow(item); }) : list;
+  }
+
+  /* The tail every save shares: put the record into the list at the form's index
+     (or on the end), write the sheet, clear the form. The three hand-written
+     submit handlers call this once they have built their record. */
+  function saveRecord(desc, record) {
+    var f = state[desc.form];
+    var list = state[desc.list].slice();
+    if (f.mode === 'edit') list[f.index] = record; else list.push(record);
+    var patch = {};
+    patch[desc.list] = list;
+    patch[desc.form] = desc.emptyForm();
+    persist(desc.sheet, desc.headers, sheetRows(desc, list), patch, 'Save error', desc.after);
+  }
+
+  function makeEdit(desc) {
+    return function (d) {
+      var index = +d.i;
+      var form = desc.toForm(state[desc.list][index]);
+      form.mode = 'edit';
+      form.index = index;
+      var patch = {};
+      patch[desc.form] = form;
+      set(patch);
+    };
+  }
+
+  function makeCancel(desc) {
+    return function () {
+      var patch = {};
+      patch[desc.form] = desc.emptyForm();
+      set(patch);
+    };
+  }
+
+  function makeSubmit(desc) {
+    return function () {
+      /* '' means "nothing to save, say nothing" — an empty name field, not an
+         error the user needs told about. */
+      var problem = desc.validate(state[desc.form], state[desc.list]);
+      if (problem !== null) {
+        if (problem) set({ error: problem });
+        return;
+      }
+      saveRecord(desc, desc.toRecord(state[desc.form]));
+    };
+  }
+
+  function makeDelete(desc) {
+    return function (d) {
+      var index = +d.i;
+      if (desc.confirmDelete && !confirm(desc.confirmDelete(state[desc.list][index]))) return;
+      var list = removeAt(state[desc.list], index);
+      var patch = {};
+      patch[desc.list] = list;
+      persist(desc.sheet, desc.headers, sheetRows(desc, list), patch, 'Delete error', desc.after);
+    };
+  }
+
+  /* Turns a descriptor's `fields` map into handlers. Also used for the four forms
+     that aren't entities (account, gold price, currency rate, provident fund,
+     stock price) — same one-liner, no descriptor to hang it off. */
+  function formFields(formName, map) {
+    var out = {};
+    Object.keys(map).forEach(function (dataF) {
+      var key = map[dataF];
+      out[dataF] = function (v) { setForm(formName, key, v); };
+    });
+    return out;
+  }
+
   var actions = {
     /* --- connection --- */
     saveAndConnect: function () {
@@ -1820,78 +2112,16 @@
       });
     },
 
-    /* --- transaction types --- */
-    editType: function (d) {
-      var index = +d.i;
-      set({ typeForm: { mode: 'edit', index: index, name: state.types[index] } });
-    },
-    cancelTypeForm: function () { set({ typeForm: { mode: 'add', index: -1, name: '' } }); },
-    submitTypeForm: function () {
-      var f = state.typeForm;
-      var name = f.name.trim();
-      if (!name) return;
-      var types = state.types.slice();
-      if (f.mode === 'edit') types[f.index] = name;
-      else {
-        if (types.indexOf(name) !== -1) { set({ error: 'Type already exists.' }); return; }
-        types.push(name);
-      }
-      persist('Transaction Types', ['Transaction Type'], types.map(function (t) { return { 'Transaction Type': t }; }),
-        { types: types, typeForm: { mode: 'add', index: -1, name: '' } }, 'Save error');
-    },
-    deleteType: function (d) {
-      var types = removeAt(state.types, +d.i);
-      persist('Transaction Types', ['Transaction Type'], types.map(function (t) { return { 'Transaction Type': t }; }),
-        { types: types }, 'Delete error');
-    },
-
-    /* --- tags --- */
-    editTag: function (d) {
-      var index = +d.i;
-      set({ tagForm: { mode: 'edit', index: index, name: state.tags[index] } });
-    },
-    cancelTagForm: function () { set({ tagForm: { mode: 'add', index: -1, name: '' } }); },
-    submitTagForm: function () {
-      var f = state.tagForm;
-      var name = f.name.trim();
-      if (!name) return;
-      var tags = state.tags.slice();
-      if (f.mode === 'edit') tags[f.index] = name;
-      else {
-        if (tags.indexOf(name) !== -1) { set({ error: 'Tag already exists.' }); return; }
-        tags.push(name);
-      }
-      persist('Tags', ['Tag'], tags.map(function (t) { return { Tag: t }; }),
-        { tags: tags, tagForm: { mode: 'add', index: -1, name: '' } }, 'Save error');
-    },
-    deleteTag: function (d) {
-      var index = +d.i;
-      var name = state.tags[index];
-      if (!confirm('Delete tag "' + name + '"? Items using it keep the old label until re-tagged.')) return;
-      var tags = removeAt(state.tags, index);
-      persist('Tags', ['Tag'], tags.map(function (t) { return { Tag: t }; }), { tags: tags }, 'Delete error');
-    },
-
-    /* --- transactions --- */
+    /* --- transactions ---
+       Types and tags are wholly descriptor-driven; see the loop below. */
     sortByDate: function () {
       set({ sortCol: 'Date', sortDir: state.sortCol === 'Date' && state.sortDir === 'asc' ? 'desc' : 'asc' });
     },
     sortByAmount: function () {
       set({ sortCol: 'Amount', sortDir: state.sortCol === 'Amount' && state.sortDir === 'asc' ? 'desc' : 'asc' });
     },
-    editTx: function (d) {
-      var index = +d.i;
-      var t = state.transactions[index];
-      set({
-        txForm: {
-          mode: 'edit', index: index, date: t.Date, amount: formatAmountDisplay(t.Amount),
-          description: t.Description, type: t['Transaction Type'], from: t['From Account'], to: t['To Account'],
-        },
-      });
-    },
-    cancelTxForm: function () {
-      set({ txForm: { mode: 'add', index: -1, date: '', amount: '', description: '', type: '', from: '', to: '' } });
-    },
+    /* Bespoke: whether To Account is required depends on the transaction type, and
+       the amount arrives from the field carrying thousands separators. */
     submitTxForm: function () {
       var f = state.txForm;
       var toRequired = toFieldRequired(f.type);
@@ -1901,20 +2131,10 @@
         set({ error: toRequired ? 'Date, Amount, From and To Account are required.' : 'Date, Amount and From Account are required.' });
         return;
       }
-      var record = {
+      saveRecord(ENTITIES.transactions, {
         Date: f.date, Amount: rawAmount, Description: f.description, 'Transaction Type': f.type,
         'From Account': f.from, 'To Account': toRequired ? f.to : '',
-      };
-      var transactions = state.transactions.slice();
-      if (f.mode === 'edit') transactions[f.index] = record; else transactions.push(record);
-      persist('Transactions', TX_HEADERS, transactions, {
-        transactions: transactions,
-        txForm: { mode: 'add', index: -1, date: '', amount: '', description: '', type: '', from: '', to: '' },
-      }, 'Save error', recomputeAndWriteAllLedgers);
-    },
-    deleteTx: function (d) {
-      var transactions = removeAt(state.transactions, +d.i);
-      persist('Transactions', TX_HEADERS, transactions, { transactions: transactions }, 'Delete error', recomputeAndWriteAllLedgers);
+      });
     },
     exportTransactionsCsv: function () {
       downloadCsv('transactions.csv', TX_HEADERS, state.transactions);
@@ -1924,48 +2144,12 @@
       downloadCsv(name.replace(/\s+/g, '_') + '_ledger.csv', LEDGER_HEADERS, computeLedger(name, state.transactions));
     },
 
-    /* --- plan --- */
-    editPlan: function (d) {
-      var index = +d.i;
-      var p = state.planItems[index];
-      set({ planForm: { mode: 'edit', index: index, step: p.Step, item: p.Item, status: p.Status, notes: p.Notes || '', version: p.Version || '' } });
-    },
-    cancelPlanForm: function () {
-      set({ planForm: { mode: 'add', index: -1, step: '1', item: '', status: 'Not started', notes: '', version: '' } });
-    },
-    submitPlanForm: function () {
-      var f = state.planForm;
-      var item = f.item.trim();
-      if (!item) return;
-      var record = { Step: f.step, Item: item, Status: f.status, Notes: f.notes.trim(), Version: f.version.trim() };
-      var planItems = state.planItems.slice();
-      if (f.mode === 'edit') planItems[f.index] = record; else planItems.push(record);
-      persist('Plan', PLAN_HEADERS, planItems, {
-        planItems: planItems,
-        planForm: { mode: 'add', index: -1, step: '1', item: '', status: 'Not started', notes: '', version: '' },
-      }, 'Save error');
-    },
-    deletePlan: function (d) {
-      var planItems = removeAt(state.planItems, +d.i);
-      persist('Plan', PLAN_HEADERS, planItems, { planItems: planItems }, 'Delete error');
-    },
+    /* --- gold ---
+       Plan is wholly descriptor-driven; see the loop below. */
 
-    /* --- gold --- */
-    editGold: function (d) {
-      var index = +d.i;
-      var it = state.goldItems[index];
-      set({
-        goldForm: {
-          mode: 'edit', index: index, quantity: String(it.Quantity), type: it.Type, brand: it.Brand || '',
-          weight: String(it['Weight (gm)']), where: it.Where || '',
-          purchasePrice: String(it['Purchase Price per Gram (EGP)']), purchaseDate: it['Purchase Date'],
-          currentPrice: String(it['Current Price per Gram (EGP)']), asOf: it['As Of'], tag: it.Tag || TAG_SAVING_OTHER,
-        },
-      });
-    },
-    cancelGoldForm: function () {
-      set({ goldForm: { mode: 'add', index: -1, quantity: '', type: '', brand: '', weight: '', where: '', purchasePrice: '', purchaseDate: '', currentPrice: '', asOf: '', tag: TAG_SAVING_OTHER } });
-    },
+    /* Bespoke: a lot saved without a current price inherits one, and its as-of
+       date, from the most recently priced lot — or, failing that, from its own
+       purchase date. */
     submitGoldForm: function () {
       var f = state.goldForm;
       var qty = parseFloat(f.quantity);
@@ -1985,21 +2169,11 @@
         currentPrice = currentPrice || latestPrice;
         asOf = asOf || (latest && latest['As Of']) || f.purchaseDate;
       }
-      var record = {
+      saveRecord(ENTITIES.gold, {
         Quantity: qty, Type: f.type.trim(), Brand: f.brand.trim(), 'Weight (gm)': weight, Where: f.where.trim(),
         'Purchase Price per Gram (EGP)': price, 'Purchase Date': f.purchaseDate,
         'Current Price per Gram (EGP)': currentPrice, 'As Of': asOf, Tag: f.tag || TAG_SAVING_OTHER,
-      };
-      var goldItems = state.goldItems.slice();
-      if (f.mode === 'edit') goldItems[f.index] = record; else goldItems.push(record);
-      persist('Gold', GOLD_HEADERS, goldItems, {
-        goldItems: goldItems,
-        goldForm: { mode: 'add', index: -1, quantity: '', type: '', brand: '', weight: '', where: '', purchasePrice: '', purchaseDate: '', currentPrice: '', asOf: '', tag: TAG_SAVING_OTHER },
-      }, 'Save error');
-    },
-    deleteGold: function (d) {
-      var goldItems = removeAt(state.goldItems, +d.i);
-      persist('Gold', GOLD_HEADERS, goldItems, { goldItems: goldItems }, 'Delete error');
+      });
     },
     applyGoldPriceUpdate: function () {
       var price = parseFloat(state.goldPriceForm.currentPrice);
@@ -2015,22 +2189,9 @@
       persist('Gold', GOLD_HEADERS, goldItems, { goldItems: goldItems }, 'Save error');
     },
 
-    /* --- certificates & rates --- */
-    editCert: function (d) {
-      var index = +d.i;
-      var c = state.certItems[index];
-      set({
-        certForm: {
-          mode: 'edit', index: index, number: c['Certificate Number'], product: c['Product Name'],
-          openDate: c['Open Date'], amount: String(c.Amount), currency: c.Currency,
-          frequency: c['Interest Frequency'], maturityDate: c['Maturity Date'],
-          rate: String((parseFloat(c['Interest Rate']) || 0) * 100), tag: c.Tag || TAG_SAVING_OTHER,
-        },
-      });
-    },
-    cancelCertForm: function () {
-      set({ certForm: { mode: 'add', index: -1, number: '', product: '', openDate: '', amount: '', currency: '', frequency: '', maturityDate: '', rate: '', tag: TAG_SAVING_OTHER } });
-    },
+    /* --- certificates & rates ---
+       Bespoke submit: the form takes an interest rate as a percentage, the sheet
+       stores it as a fraction. */
     submitCertForm: function () {
       var f = state.certForm;
       var amount = parseFloat(f.amount);
@@ -2039,21 +2200,11 @@
         set({ error: 'Amount, Currency, Open Date, Maturity Date and Interest Rate are required.' });
         return;
       }
-      var record = {
+      saveRecord(ENTITIES.certs, {
         'Certificate Number': f.number.trim(), 'Product Name': f.product.trim(), 'Open Date': f.openDate,
         Amount: amount, Currency: f.currency.trim().toUpperCase(), 'Interest Frequency': f.frequency.trim(),
         'Maturity Date': f.maturityDate, 'Interest Rate': ratePct / 100, Tag: f.tag || TAG_SAVING_OTHER,
-      };
-      var certItems = state.certItems.slice();
-      if (f.mode === 'edit') certItems[f.index] = record; else certItems.push(record);
-      persist('Certificates', CERT_HEADERS, certItems, {
-        certItems: certItems,
-        certForm: { mode: 'add', index: -1, number: '', product: '', openDate: '', amount: '', currency: '', frequency: '', maturityDate: '', rate: '', tag: TAG_SAVING_OTHER },
-      }, 'Save error');
-    },
-    deleteCert: function (d) {
-      var certItems = removeAt(state.certItems, +d.i);
-      persist('Certificates', CERT_HEADERS, certItems, { certItems: certItems }, 'Delete error');
+      });
     },
     applyRateUpdate: function () {
       var currency = state.rateForm.currency.trim().toUpperCase();
@@ -2079,61 +2230,8 @@
       }, 'Save error');
     },
 
-    /* --- stocks --- */
-    editHolding: function (d) {
-      var index = +d.i;
-      var h = state.stockHoldings[index];
-      set({
-        holdingForm: {
-          mode: 'edit', index: index, source: h.Source || 'Vested RSU', label: h.Label || '',
-          quantity: String(h.Quantity), cost: String(h['Cost Basis (USD)']), acquired: h['Acquired Date'] || '',
-        },
-      });
-    },
-    cancelHoldingForm: function () {
-      set({ holdingForm: { mode: 'add', index: -1, source: 'Vested RSU', label: '', quantity: '', cost: '', acquired: '' } });
-    },
-    submitHoldingForm: function () {
-      var f = state.holdingForm;
-      var qty = parseFloat(f.quantity);
-      var cost = parseFloat(f.cost);
-      if (!qty || isNaN(cost)) { set({ error: 'Quantity and Cost Basis are required.' }); return; }
-      var record = { Source: f.source, Label: f.label.trim(), Quantity: qty, 'Cost Basis (USD)': cost, 'Acquired Date': f.acquired };
-      var stockHoldings = state.stockHoldings.slice();
-      if (f.mode === 'edit') stockHoldings[f.index] = record; else stockHoldings.push(record);
-      persist('Stock Holdings', STOCK_HOLDINGS_HEADERS, stockHoldings, {
-        stockHoldings: stockHoldings,
-        holdingForm: { mode: 'add', index: -1, source: 'Vested RSU', label: '', quantity: '', cost: '', acquired: '' },
-      }, 'Save error');
-    },
-    deleteHolding: function (d) {
-      var stockHoldings = removeAt(state.stockHoldings, +d.i);
-      persist('Stock Holdings', STOCK_HOLDINGS_HEADERS, stockHoldings, { stockHoldings: stockHoldings }, 'Delete error');
-    },
-    editVesting: function (d) {
-      var index = +d.i;
-      var vest = state.stockVesting[index];
-      set({ vestingForm: { mode: 'edit', index: index, date: vest['Vest Date'] || '', grant: vest.Grant || '', units: String(vest.Units) } });
-    },
-    cancelVestingForm: function () {
-      set({ vestingForm: { mode: 'add', index: -1, date: '', grant: '', units: '' } });
-    },
-    submitVestingForm: function () {
-      var f = state.vestingForm;
-      var units = parseFloat(f.units);
-      if (!f.date || !units) { set({ error: 'Vest Date and Units are required.' }); return; }
-      var record = { 'Vest Date': f.date, Grant: f.grant.trim(), Units: units };
-      var stockVesting = state.stockVesting.slice();
-      if (f.mode === 'edit') stockVesting[f.index] = record; else stockVesting.push(record);
-      persist('Stock Vesting', STOCK_VESTING_HEADERS, stockVesting, {
-        stockVesting: stockVesting,
-        vestingForm: { mode: 'add', index: -1, date: '', grant: '', units: '' },
-      }, 'Save error');
-    },
-    deleteVesting: function (d) {
-      var stockVesting = removeAt(state.stockVesting, +d.i);
-      persist('Stock Vesting', STOCK_VESTING_HEADERS, stockVesting, { stockVesting: stockVesting }, 'Delete error');
-    },
+    /* --- stocks ---
+       Holdings and vesting are wholly descriptor-driven; see the loop below. */
     applyStockPriceUpdate: function () {
       var f = state.stockPriceForm;
       /* Blank fields keep whatever the Sheet already holds; on a fresh Sheet there
@@ -2155,86 +2253,83 @@
     },
   };
 
-  /* Input handlers, keyed by the control's data-f attribute. */
+  /* Generate the four handlers every entity in ENTITIES needs. `submit` is only
+     generated where the descriptor carries validate/toRecord — the three above
+     that validate on their own already occupy their name in `actions`, and this
+     loop must never overwrite one. */
+  Object.keys(ENTITIES).forEach(function (key) {
+    var desc = ENTITIES[key];
+    actions['edit' + desc.act] = makeEdit(desc);
+    actions['cancel' + desc.act + 'Form'] = makeCancel(desc);
+    actions['delete' + desc.act] = makeDelete(desc);
+    var submitName = 'submit' + desc.act + 'Form';
+    if (desc.validate && desc.toRecord) actions[submitName] = makeSubmit(desc);
+    else if (!actions[submitName]) throw new Error('no submit handler for ' + key);
+  });
+
+  /* Input handlers, keyed by the control's data-f attribute.
+     Everything that just copies the typed value into a form field is generated
+     from a form-key map; only the handlers below, which rewrite what the user
+     typed, are written out. Adding a plain field is a line in a descriptor's
+     `fields`, not a handler here. */
   var fields = {
     clientId: function (v) { set({ clientIdInput: v }); },
     spreadsheetId: function (v) { set({ spreadsheetIdInput: v }); },
     search: function (v) { set({ search: v }); },
 
-    acctName: function (v) { setForm('acctForm', 'name', v); },
-    acctOwner: function (v) { setForm('acctForm', 'owner', v); },
-    acctTag: function (v) { setForm('acctForm', 'tag', v); },
-    typeName: function (v) { setForm('typeForm', 'name', v); },
-    tagName: function (v) { setForm('tagForm', 'name', v); },
-
-    txType: function (v) { setForm('txForm', 'type', v); },
-    txDate: function (v) { setForm('txForm', 'date', v); },
+    /* Reformats as you type, so it cannot go through setForm: the value shown
+       back is not the value received. render() then puts the caret at the end. */
     txAmount: function (v) {
       if (v === '' || /^-?[\d,]*\.?\d*$/.test(v)) state.txForm.amount = formatAmountDisplay(v);
       render();
     },
-    txDescription: function (v) { setForm('txForm', 'description', v); },
-    txFrom: function (v) { setForm('txForm', 'from', v); },
-    txTo: function (v) { setForm('txForm', 'to', v); },
-
-    planStep: function (v) { setForm('planForm', 'step', v); },
-    planItem: function (v) { setForm('planForm', 'item', v); },
-    planStatus: function (v) { setForm('planForm', 'status', v); },
-    planNotes: function (v) { setForm('planForm', 'notes', v); },
-    planVersion: function (v) { setForm('planForm', 'version', v); },
-
-    goldQuantity: function (v) { setForm('goldForm', 'quantity', v); },
-    goldType: function (v) { setForm('goldForm', 'type', v); },
-    goldBrand: function (v) { setForm('goldForm', 'brand', v); },
-    goldWeight: function (v) { setForm('goldForm', 'weight', v); },
-    goldWhere: function (v) { setForm('goldForm', 'where', v); },
-    goldPurchasePrice: function (v) { setForm('goldForm', 'purchasePrice', v); },
-    goldPurchaseDate: function (v) { setForm('goldForm', 'purchaseDate', v); },
-    goldTag: function (v) { setForm('goldForm', 'tag', v); },
-    goldPriceCurrent: function (v) { setForm('goldPriceForm', 'currentPrice', v); },
-    goldPriceAsOf: function (v) { setForm('goldPriceForm', 'asOf', v); },
-
-    certNumber: function (v) { setForm('certForm', 'number', v); },
-    certProduct: function (v) { setForm('certForm', 'product', v); },
-    certOpenDate: function (v) { setForm('certForm', 'openDate', v); },
-    certAmount: function (v) { setForm('certForm', 'amount', v); },
-    certCurrency: function (v) { setForm('certForm', 'currency', v.toUpperCase()); },
-    certFrequency: function (v) { setForm('certForm', 'frequency', v); },
-    certMaturityDate: function (v) { setForm('certForm', 'maturityDate', v); },
-    certRate: function (v) { setForm('certForm', 'rate', v); },
-    certTag: function (v) { setForm('certForm', 'tag', v); },
-
-    rateCurrency: function (v) { setForm('rateForm', 'currency', v.toUpperCase()); },
-    rateValue: function (v) { setForm('rateForm', 'rate', v); },
-    rateAsOf: function (v) { setForm('rateForm', 'asOf', v); },
-
+    /* Filters rather than reformats — a rejected keystroke leaves state alone. */
     pfBalance: function (v) {
       if (v === '' || /^[\d,]*\.?\d*$/.test(v)) state.pfForm.balance = v;
       render();
     },
-    pfAsOf: function (v) { setForm('pfForm', 'asOf', v); },
-    pfTag: function (v) { setForm('pfForm', 'tag', v); },
 
-    holdingSource: function (v) { setForm('holdingForm', 'source', v); },
-    holdingLabel: function (v) { setForm('holdingForm', 'label', v); },
-    holdingQuantity: function (v) { setForm('holdingForm', 'quantity', v); },
-    holdingCost: function (v) { setForm('holdingForm', 'cost', v); },
-    holdingAcquired: function (v) { setForm('holdingForm', 'acquired', v); },
-
-    vestingDate: function (v) { setForm('vestingForm', 'date', v); },
-    vestingGrant: function (v) { setForm('vestingForm', 'grant', v); },
-    vestingUnits: function (v) { setForm('vestingForm', 'units', v); },
-
+    /* Currency codes and ticker symbols are upper-case by convention; doing it on
+       input keeps what is stored and what is shown the same string. */
+    certCurrency: function (v) { setForm('certForm', 'currency', v.toUpperCase()); },
+    rateCurrency: function (v) { setForm('rateForm', 'currency', v.toUpperCase()); },
     stockSymbol: function (v) { setForm('stockPriceForm', 'symbol', v.toUpperCase()); },
-    stockPrice: function (v) { setForm('stockPriceForm', 'currentPrice', v); },
-    stockCash: function (v) { setForm('stockPriceForm', 'cash', v); },
-    stockAsOf: function (v) { setForm('stockPriceForm', 'asOf', v); },
 
+    /* Updates the readouts in place instead of re-rendering — replacing the range
+       input mid-drag would drop the drag gesture. */
     stockScenario: function (v) {
       state.stockScenarioPrice = parseFloat(v);
       updateScenarioReadouts(state.stockScenarioPrice);
     },
   };
+
+  /* The forms with no entity behind them: accounts (tab lifecycle), the two
+     bulk-update panels, provident fund and stock meta. */
+  var STANDALONE_FIELDS = [
+    ['acctForm', { acctName: 'name', acctOwner: 'owner', acctTag: 'tag' }],
+    ['goldPriceForm', { goldPriceCurrent: 'currentPrice', goldPriceAsOf: 'asOf' }],
+    ['rateForm', { rateValue: 'rate', rateAsOf: 'asOf' }],
+    ['pfForm', { pfAsOf: 'asOf', pfTag: 'tag' }],
+    ['stockPriceForm', { stockPrice: 'currentPrice', stockCash: 'cash', stockAsOf: 'asOf' }],
+  ];
+
+  /* A generated name colliding with one of the transforming handlers above would
+     silently drop the transform, which is exactly the bug this milestone could
+     introduce. Refuse to start instead. */
+  function addFields(generated) {
+    Object.keys(generated).forEach(function (name) {
+      if (fields[name]) throw new Error('generated field handler would shadow ' + name);
+      fields[name] = generated[name];
+    });
+  }
+
+  Object.keys(ENTITIES).forEach(function (key) {
+    var desc = ENTITIES[key];
+    addFields(formFields(desc.form, desc.fields));
+  });
+  STANDALONE_FIELDS.forEach(function (pair) {
+    addFields(formFields(pair[0], pair[1]));
+  });
 
   /* ---------------------------------------------------------------- 10. boot --- */
 

@@ -1,7 +1,9 @@
 # Finance Tracker — refactoring plan
 
 Eight milestones that remove the code smells left after the app was rewritten off its
-design tool. Nothing here has been started.
+design tool. Milestones 1–3 have landed; 4 onwards have not been started. The "where
+the code stands" figures below are the diagnosis this plan was written from — they
+describe the starting point, not the tree today.
 
 A refactor is behaviour-preserving by definition: the runner must be green and the UI
 pixel-identical before and after every milestone. Do them in order — each assumes the
@@ -81,7 +83,7 @@ src/css/              base, components, screens, utilities
 scripts/              serve.ps1, test.ps1 — dev tooling, never deployed
 config/.env.example   template; the real .env is untracked
 docs/                 functional-reqs, design, plan
-test/                 smoke.html, golden.html, unit.html, golden.json
+test/                 smoke.html, golden.html, crud.html, unit.html, golden.json, crud.json
 ```
 
 `scripts/` not `utilities/`, so it doesn't collide with `css/utilities.css`; `src/js/`
@@ -97,8 +99,9 @@ every harness × scenario, prints one summary, exits 0/1. No dependencies. Two t
 - Pass `--headless=new --disable-gpu --no-sandbox --virtual-time-budget=10000` and a
   per-run `--user-data-dir` so repeated runs don't fight over a profile.
 
-**Baselines are committed files, rewritten only by `-Update`.** `test/golden.json` is
-the definition of "behaviour preserved"; re-baselining must be an explicit, reviewable
+**Baselines are committed files, rewritten only by `-Update`.** `test/golden.json`
+(rendered DOM) and `test/crud.json` (Sheets write payloads) are together the
+definition of "behaviour preserved"; re-baselining must be an explicit, reviewable
 act. A baseline captured *after* a change certifies the change.
 
 **Commits are manual, by the repo owner, after each milestone.** No agent commits, per
@@ -225,18 +228,25 @@ adding an ordinary entity a data change rather than four new handlers.
 That leaves **8 genuinely repetitive entities**: types, tags, transactions, plan, gold,
 certificates, holdings, vesting.
 
-1. ⬜ One descriptor per entity: sheet name, headers, `state` key, form key, the
+1. ✅ One descriptor per entity: sheet name, headers, `state` key, form key, the
    empty-form literal, and `toRecord(form)` / `toForm(record)`. One place instead of
-   three.
-2. ⬜ Derive `editX` / `cancelXForm` / `deleteX` from the descriptor — across these 8
-   they differ only in which keys they touch.
-3. ⬜ Keep `submitXForm` per entity **where validation genuinely differs**: gold's price
+   three. — `ENTITIES` in `app.js`; keys documented in
+   [design.md](design.md#the-render-model).
+2. ✅ Derive `editX` / `cancelXForm` / `deleteX` from the descriptor — across these 8
+   they differ only in which keys they touch. — `makeEdit` / `makeCancel` /
+   `makeDelete`, registered by one loop over `ENTITIES`.
+3. ✅ Keep `submitXForm` per entity **where validation genuinely differs**: gold's price
    inheritance, transactions' To-Account rule, certificates' percent-to-fraction
    conversion. Forcing those into a generic shape trades duplication for worse
-   indirection.
-4. ⬜ Generate the mechanical `fields` entries from the descriptors, keeping the 6 that
+   indirection. — those three stayed hand-written and call `saveRecord()` for the
+   shared tail; the other five are generated from `validate` + `toRecord`.
+4. ✅ Generate the mechanical `fields` entries from the descriptors, keeping the 6 that
    transform input (`txAmount`, `pfBalance`, the four upper-casing ones) as explicit
-   exceptions.
+   exceptions. — 48 of 57 generated. The exceptions are `txAmount`, `pfBalance`,
+   `stockScenario` and **three** upper-casing handlers (`certCurrency`,
+   `rateCurrency`, `stockSymbol`), not four; `clientId` / `spreadsheetId` / `search`
+   also stay explicit, as they call `set()` rather than `setForm()`. Generation throws
+   at boot rather than shadow a hand-written name.
 
 Watch for: the two `confirm()` prompts must survive — the accounts one sits in code this
 milestone doesn't touch, the tags one in code it does. So must the ledger recompute that
@@ -244,28 +254,50 @@ follows transaction writes (`persist(...)`'s `after` callback).
 
 **Tests** — the heaviest set here, because this is the milestone that can corrupt data.
 
-- ⬜ **Round-trip per entity, all 10** — the 8 converted *and* the 2 exempt. Accounts and
+All of it lives in `test/crud.html`, driven by the runner in both scenarios and
+compared against `test/crud.json` — captured against the unmodified app *before* any
+of the above landed.
+
+- ✅ **Round-trip per entity, all 10** — the 8 converted *and* the 2 exempt. Accounts and
   Provident Fund must be *proven* untouched, not assumed. For each: add a row through
   the UI, edit it, delete it, assert the captured write payload — header order and cell
   values — matches the pre-refactor baseline byte for byte. Run this after **each**
-  entity, not after all eight.
-- ⬜ **Column-order guard.** Assert the written header row equals the constant header
+  entity, not after all eight. — 29 operations × 2 scenarios; Cancel is round-tripped
+  too, and asserted to write nothing.
+- ✅ **Column-order guard.** Assert the written header row equals the constant header
   array for that sheet. A descriptor with keys in the wrong order still produces
-  well-formed output; only this catches it.
-- ⬜ **Confirm prompts.** Stub `window.confirm` to count calls: exactly one for account
+  well-formed output; only this catches it. — `SHEET_HEADERS` in `crud.html` is a
+  second, independent copy of the arrays; 46 payloads per scenario are checked against
+  it, plus cell count per row and the range the write lands on.
+- ✅ **Confirm prompts.** Stub `window.confirm` to count calls: exactly one for account
   delete, one for tag delete, **zero** for the other eight.
-- ⬜ **Ledger recompute.** After a transaction write and an account write, assert the
-  affected per-account ledger tabs appear in the write list.
-- ⬜ **The 6 field exceptions, individually.** `txAmount` inserts thousands separators
+- ✅ **Ledger recompute.** After a transaction write and an account write, assert the
+  affected per-account ledger tabs appear in the write list. — note `deleteAccount`
+  deliberately does *not* recompute; it drops the tab.
+- ✅ **The 6 field exceptions, individually.** `txAmount` inserts thousands separators
   and keeps the caret at the end; `pfBalance` likewise; each upper-casing field
-  upper-cases. These are precisely the entries that must *not* be generated.
-- ⬜ **Empty scenario.** Add the first row of an entity into an empty Sheet — the path
+  upper-cases. These are precisely the entries that must *not* be generated. —
+  `pfBalance` filters rather than reformats, so the caret is not moved.
+- ✅ **Empty scenario.** Add the first row of an entity into an empty Sheet — the path
   where `toForm` gets nothing to work with.
-- ⬜ Golden snapshot clean.
+- ✅ Golden snapshot clean — byte-identical, not re-baselined.
+- ✅ **Both guards proven to fail.** Swapping two values in a `toRecord` and reordering
+  a header constant were each injected deliberately; the harness named the sheet, row
+  and column both times.
 
 **Run it with:** Opus 5, thinking hard (*ultrathink*), **one entity per message**. Eight
 entities × four handlers × exact column orders is more state than is worth holding in
 one turn, and the failure is silent. This is where to spend the budget.
+
+**What it cost:** `actions` went 470 → 274 lines and `fields` 80 → 30, but `app.js`
+grew 2,278 → 2,424 — the 8 entities' 32 handlers and 51 field one-liners were replaced
+by a 181-line `ENTITIES` block (a third of it explanatory comment) and ~75 lines of
+generic machinery. The 274 that remain in `actions` are mostly the two exempt entities
+(~95 lines) and the flat list of navigation one-liners (~45), neither of which this
+milestone touched — so "closer to 200" was not reachable without going beyond its
+scope. What did change is the shape: adding a field is a line in a descriptor, adding
+an ordinary entity is a descriptor, and each form's blank literal exists once instead
+of three times.
 
 ---
 
