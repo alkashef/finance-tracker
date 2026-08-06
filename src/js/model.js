@@ -134,7 +134,7 @@ function assign(target, slice) {
    than with the view helpers in views/helpers.js because every call site is a
    builder below — moving it downstream of them would need model.js to import
    from views.js, against the module graph's direction. */
-function gainClass(n, posClass, negClass) {
+export function gainClass(n, posClass, negClass) {
   return n >= 0 ? (posClass || 'gain-pos') : (negClass || 'gain-neg');
 }
 

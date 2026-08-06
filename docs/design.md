@@ -6,34 +6,70 @@ How the app is built. For the business rules it implements see
 
 ## Shape of the thing
 
-A static site with no build step, no bundler, and no backend. Three hand-written
-files, served as-is:
+A static site with no build step, no bundler, and no backend, served as-is:
+
+| Path | Contains |
+| --- | --- |
+| `index.html` | The page shell: `<head>` metadata, the favicon, the four `<link>` stylesheets (cascade order matters — see below), the Google Identity Services `<script>`, an empty `#sidebar` and `#main`, and `<script type="module" src="src/app.js">`. Nothing else — every screen is rendered by JS. |
+| `src/css/` | All styling, split into four cascade-ordered files — see below. |
+| `src/app.js` | The entry module: the render loop (with the by-hand focus/caret/scroll restoration a template-string render loop needs), event delegation, and boot. |
+| `src/js/` | Everything else, one file per concern: `format.js`, `constants.js`, `state.js`, `sheets.js`, `model.js`, `views.js` (a barrel — the screens themselves live under `views/*.js`), `actions.js`. |
+
+`src/app.js` and `src/js/*.js` are plain ES modules (`<script type="module">`),
+resolved by the browser with no bundler and no transpile — still no build step. They
+used to be one classic script wrapped in an IIFE; that was originally to keep
+`index.html` working when opened directly from disk over `file://`, but **that reason
+never actually held**: OAuth requires an origin registered in Google Cloud Console and
+`file://` reports origin `null`, which cannot be registered, so the app has always
+needed a served origin.
+
+The module graph is a DAG — `format → constants → state → sheets → model → views →
+actions → app` — because a circular import leaves a binding `undefined` at evaluation
+time rather than failing at the call site. Two places need a function that lives
+strictly downstream and can't import it without creating a cycle back to themselves;
+both are resolved the same way, a small indirection wired in after import rather than
+at definition:
+
+- `state.js`'s `set()` / `setForm()` / `toggle()` call `render()`, which lives in
+  `app.js` (the last file in the graph, since it needs the DOM elements and the view
+  builders). `state.js` exports a `setRenderer(fn)` hook instead of importing `render`
+  directly; `app.js` calls it as the first line of `boot()`.
+- `ENTITIES.transactions.after` (`constants.js`) and `fields.stockScenario`
+  (`actions.js`) both need a function one or two files downstream — the ledger
+  recompute in `model.js`, and the what-if slider's readout updater in `app.js`.
+  Both are patched onto the already-built descriptor/map right after the file that
+  defines the function they need is imported.
+
+### `src/css/`
+
+Four files, `<link>`ed in `index.html` in cascade order — **the order is load-bearing
+and this is the only place it's recorded**:
 
 | File | Contains |
 | --- | --- |
-| `index.html` | The page shell: `<head>` metadata, the favicon, `<link>` to the stylesheet, the Google Identity Services `<script>`, an empty `#sidebar` and `#main`, and `<script src="app.js">`. Nothing else — every screen is rendered by JS. |
-| `styles.css` | All styling, as ordinary classes. |
-| `app.js` | Everything else: constants and entity descriptors, formatting helpers, the state object, the OAuth + Sheets API layer, the view model, the screen views, the render loop, and the event handlers. |
+| `base.css` | Reset, `:root` design tokens (brand colours, font sizes, border radii), `body`, links, layout, the sidebar. |
+| `components.css` | Buttons, inputs, tables, tabs, pills, stat cards, chevrons, page furniture (titles/hints/banners), gain/loss/flag value colours. |
+| `screens.css` | Dashboard, stocks, certificates, plan, ledger, settings — styling specific to one screen. |
+| `utilities.css` | The `.mb-*` spacing helpers — loaded last, so a utility class always wins the cascade over a component's own margin. |
 
-`app.js` is a single classic script wrapped in an IIFE. That was originally to keep
-`index.html` working when opened directly from disk over `file://`, but **that reason
-no longer holds**: OAuth requires an origin registered in Google Cloud Console and
-`file://` reports origin `null`, which cannot be registered, so the app has always
-needed a served origin. ES modules cost nothing here and are still no build step —
-splitting `app.js` into `js/*.js` modules is Part II Phase 9 of
-[plan.md](plan.md#decision--split-the-js-into-es-modules--decided).
+Repeated literals — brand colours, the four font sizes, the three border radii, the
+border grey — are `:root` custom properties defined once in `base.css` and consumed
+everywhere else as `var(...)`. Not every literal was tokenized: `#fff` backgrounds and
+a handful of one-off border radii were left as plain values because they weren't the
+ones actually repeating.
 
 ## Rendering model
 
-There is no framework. One `state` object is the single source of truth, mirroring
-what the app needs across every screen. The cycle is:
+There is no framework. One `state` object (`src/js/state.js`) is the single source of
+truth, mirroring what the app needs across every screen. The cycle is:
 
-1. A handler mutates `state` and calls `render()`.
-2. `render()` builds a view model (`buildViewModel()`) — a plain object of
-   already-formatted display strings and row arrays, with no functions or style
-   strings in it.
-3. `viewSidebar()` and `viewMain()` turn that view model into HTML strings, and
-   `render()` assigns them with `innerHTML`.
+1. A handler mutates `state` and calls `render()` (`src/app.js`).
+2. `render()` builds a view model (`buildViewModel()`, `src/js/model.js`) — a plain
+   object of already-formatted display strings and row arrays, with no functions or
+   style strings in it.
+3. `viewSidebar()` and `viewMain()` (`src/js/views.js`, a barrel over `views/*.js`)
+   turn that view model into HTML strings, and `render()` assigns them with
+   `innerHTML`.
 
 Screens are chosen by `state.activeSheet` in `viewScreen()`. Per-account ledgers use
 the pseudo-screen id `account:<name>`.
@@ -62,19 +98,21 @@ sorts and reversals copy first, because the ledgers and the totals are shared. T
 deliberately no per-screen laziness or caching: the whole model is rebuilt on every
 keystroke, which at this size costs nothing worth the complexity.
 
-**Events are delegated**, not re-bound per render: two document-level listeners
-dispatch on data attributes.
+**Events are delegated**, not re-bound per render: two document-level listeners in
+`src/app.js` dispatch on data attributes.
 
 - `data-act="someAction"` on a clicked element → `actions.someAction(dataset)`.
   Row-level buttons carry `data-i="<index>"`; the certificate group toggle carries
   `data-k="<currency>"`.
 - `data-f="someField"` on an input/select → `fields.someField(value)` on `input`.
 
+Both maps (`actions`, `fields`) are built in `src/js/actions.js`.
+
 **Most of both maps is generated from entity descriptors.** Eight of the ten entities
 — transaction types, tags, transactions, plan, gold, certificates, stock holdings,
 stock vesting — differ only in which sheet, headers, state keys and form fields they
-touch, so each is described once in the `ENTITIES` object and its handlers are built
-from that:
+touch, so each is described once in the `ENTITIES` object (`src/js/constants.js`) and
+its handlers are built from that:
 
 | Descriptor key | What it decides |
 | --- | --- |
@@ -186,11 +224,15 @@ How the calls are made:
 ### Optional local defaults (`config/.env`)
 
 On a dev copy, `config/.env` can supply starting values for those two fields so they
-survive a cleared `localStorage`. `applyLocalDefaults()` runs at the end of `boot()`,
-after the first paint:
+survive a cleared `localStorage`. `applyLocalDefaults()` (`src/app.js`) runs at the end
+of `boot()`, after the first paint:
 
-- It `fetch`es `config/.env`, parses `KEY=value` lines (`#` comments, optional
-  surrounding quotes, whitespace trimmed) and reads exactly two keys —
+- It `fetch`es `config/.env` (resolved from `src/app.js`'s own module URL via
+  `import.meta.url`, not the loading page's — `test/smoke.html` would otherwise ask
+  for `test/config/.env`) and parses `KEY=value` lines with `parseEnv()`
+  (`src/js/format.js` — a pure text transform, so it lives with the other
+  no-DOM-no-state helpers and is importable on its own by `test/unit.html`): `#`
+  comments, optional surrounding quotes, whitespace trimmed, reading exactly two keys —
   `GOOGLE_OAUTH_CLIENT_ID` and `SPREADSHEET_ID`.
 - **It only fills empty fields.** If `restoreConfig()` already found a saved config,
   the fetch is skipped entirely, so editing Settings in the browser is not undone on
@@ -208,7 +250,7 @@ Neither value is a credential: the Client ID is public by design and the Spreads
 identifies a document without granting access to it. Reading the Sheet still requires
 an OAuth token for an account it is shared with.
 
-`serve.ps1` serves dotfiles (unknown extensions fall back to
+`scripts/serve.ps1` serves dotfiles (unknown extensions fall back to
 `application/octet-stream`, which `fetch().text()` is happy with). Static servers that
 block dotfiles will simply 404, and the app falls back to the empty Settings form.
 
@@ -235,9 +277,11 @@ block dotfiles will simply 404, and the app falls back to the empty Settings for
 
 ## Hosting
 
-The three files are pushed to the `alkashef.github.io` GitHub Pages repo and served
-as static files — no CI, no build pipeline, no export step. What is in this repo is
-what runs.
+The whole tree is pushed to the `alkashef.github.io` GitHub Pages repo and served as
+static files — no CI, no build pipeline, no export step. What is in this repo is what
+runs. Because the app is now a real module graph, deployment has to carry every file
+in `src/`: an import GitHub Pages 404s on is a blank page before first paint, not one
+broken screen, so a push should always be followed by loading the live site once.
 
 ## History
 
@@ -245,6 +289,17 @@ what runs.
 authoring tool: an inlined `dc-runtime` bundle, a `<x-dc>` template in a custom
 directive syntax (`sc-if` / `sc-for` / `{{ }}`), a React/ReactDOM CDN dependency,
 and every style written as an inline `style="..."` string computed in JS. That file
-was build output, not source. It was replaced by the three plain files above; the
-directive syntax, the runtime, and React are gone, and inline styles became CSS
-classes.
+was build output, not source. It was replaced by three plain files — `index.html`,
+`styles.css`, `app.js` — with the directive syntax, the runtime, and React gone, and
+inline styles turned into CSS classes.
+
+That three-file version itself accumulated the usual signs of a rewrite done in one
+pass: a 2,278-line `app.js` in one IIFE, a 470-line flat `actions` object, a
+399-line `buildViewModel()`. [plan.md](plan.md) is the record of the eight-milestone
+refactor that worked through it — descriptor-driven CRUD for the eight repetitive
+entities, `buildViewModel()` split into per-domain builders, `app.js` split into the
+`src/js/` module graph described above, and `styles.css` split into `src/css/` with
+design tokens replacing its repeated literals — while a golden-DOM/write-payload/
+screenshot-hash safety net certified each step as behaviour-preserving. Every
+mechanism described in this document above the History section reflects where that
+refactor landed, not the original rewrite.

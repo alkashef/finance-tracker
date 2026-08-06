@@ -46,3 +46,26 @@ export function esc(v) {
   if (v === null || v === undefined) return '';
   return String(v).replace(/[&<>"']/g, function (c) { return ESCAPES[c]; });
 }
+
+/* KEY=value line parser for config/.env (app.js's applyLocalDefaults()). Lives
+   here, not in app.js, so it's importable without booting the app — a pure
+   text transform with no state/DOM dependency, same as everything else above. */
+export function parseEnv(text) {
+  var out = {};
+  text.split(/\r?\n/).forEach(function (line) {
+    line = line.trim();
+    if (!line || line.charAt(0) === '#') return;
+    var eq = line.indexOf('=');
+    if (eq < 1) return;
+    var key = line.slice(0, eq).trim();
+    var val = line.slice(eq + 1).trim();
+    var q = val.charAt(0);
+    /* Quotes are optional, but honour them so a trailing space isn't swallowed
+       into an ID that then fails to match anything. */
+    if (val.length > 1 && (q === '"' || q === "'") && val.charAt(val.length - 1) === q) {
+      val = val.slice(1, -1);
+    }
+    out[key] = val;
+  });
+  return out;
+}

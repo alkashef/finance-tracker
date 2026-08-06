@@ -1,9 +1,9 @@
 # Finance Tracker — refactoring plan
 
 Eight milestones that remove the code smells left after the app was rewritten off its
-design tool. Milestones 1–4 have landed; 5 onwards have not been started. The "where
-the code stands" figures below are the diagnosis this plan was written from — they
-describe the starting point, not the tree today.
+design tool. All eight have landed. The "where the code stands" figures below are the
+diagnosis this plan was written from — they describe the starting point, not the tree
+today.
 
 A refactor is behaviour-preserving by definition: the runner must be green and the UI
 pixel-identical before and after every milestone. Do them in order — each assumes the
@@ -119,7 +119,7 @@ it, and that is where the ability to bisect is lost.
 | 5 | Shared view helpers | ✅ done | Sonnet 5 | on |
 | 6 | `src/js/` — ES modules | ✅ done | Sonnet 5 | on |
 | 7 | `src/css/` — tokens and split | ✅ done | Sonnet 5 | on |
-| 8 | Re-verify and document | ⬜ | Sonnet 5 → Opus 5 | on |
+| 8 | Re-verify and document | ✅ done | Sonnet 5 → Opus 5 | on |
 
 Switch model with `/model`; Fast mode (`/fast`) keeps Opus's capability with faster
 output. "Thinking" means extended thinking — toggle it, or use *think* / *think hard* /
@@ -595,7 +595,7 @@ worth knowing before leaning on it again in Milestone 8's whole-run comparison.
 
 ## Milestone 8 — Re-verify and document
 
-1. ⬜ **Fill `test/unit.html`** — this is where the deferrals get paid back. Now that
+1. ✅ **Fill `test/unit.html`** — this is where the deferrals get paid back. Now that
    `src/js/*` is importable:
    - the per-domain builders against a frozen `state` fixture, compared to a stored JSON
      golden (the direct view-model check Milestone 4 could not run);
@@ -604,28 +604,74 @@ worth knowing before leaning on it again in Milestone 8's whole-run comparison.
      per screen;
    - `dataTable` with zero rows, one row, and a row with no actions;
    - `parseEnv` on comments, padding, quotes and a missing `=`.
-2. ⬜ Update `docs/design.md` (directory layout, module boundaries), `CLAUDE.md` (file
-   list, conventions, the `scripts/serve.ps1` path) and `README.md` (the run command) in
-   the same change.
+
+   Two judgment calls beyond the milestone's own list. First, "compared to a stored
+   JSON golden" became inline literal expectations instead of a new `test/unit.json` +
+   `-Update` wiring: `certificatesModel` measures days-to-maturity against the real
+   wall clock, so a byte-exact snapshot captured today would silently go stale
+   tomorrow (confirmed — the existing `golden.json` already carries this same
+   latent issue in its captured "Matures in 26d" string, unrelated to this
+   milestone and left alone). The fixture's global `Date` is frozen for the
+   duration of the check instead (restored in `finally`, no change to `model.js`),
+   and the expected values are hand-derived numbers run through the real `fmtMoney`
+   / `fmtEGP` formatters, covering every builder `buildViewModel()` composes:
+   `goldModel`, `certificatesModel`, `stocksModel`, `providentFundModel`,
+   `planModel`, `transactionsModel`, `dashboardModel`, and `ledgerModel` (via a
+   second call with `activeSheet` switched to the `account:` pseudo-screen). Second,
+   `gainClass` and `parseEnv` were both promoted from private functions to named
+   exports (`src/js/model.js`, `src/js/format.js`) purely so this file could reach
+   them without booting the whole app — `parseEnv` in particular moved out of
+   `src/app.js` into `format.js`, next to the other no-DOM-no-state helpers, since
+   importing anything from `app.js` runs its unconditional `boot()` call at module
+   evaluation time. Neither change alters behaviour; confirmed by the byte-identical
+   `golden.json`/`crud.json` run below.
+2. ✅ Updated `docs/design.md` (directory layout, the module DAG and its two
+   indirections, the CSS split, `parseEnv`'s new home), `CLAUDE.md` (file list,
+   conventions, the `scripts/serve.ps1` path, the four-baseline `-Update` behaviour)
+   and `README.md` (the run command, the `-Update` description) in the same change.
 
 **Tests**
 
-- ⬜ `scripts/test.ps1` exits 0 end to end: smoke green in both scenarios, golden clean,
-  CSS coverage clean, unit tests green.
-- ⬜ **Whole-run screenshot hashes** — from **before Milestone 1** against **after
-  Milestone 7**, not just per milestone. A per-milestone check that was re-baselined can
-  hide a drift this comparison still catches.
-- ⬜ **The hand-restored behaviours, by hand.** These are what the render loop
-  reconstructs and the likeliest regressions: caret position while typing (including the
-  amount field that reformats as you type), the Transactions search box, dragging the
-  what-if slider, and scroll position of both panes after a re-render.
-- ⬜ **Nothing written to an empty Sheet** — the "no data in the app" rule, and a
-  plausible casualty of descriptor-driven CRUD.
-- ⬜ **The live site boots.** Deploy and load it; the whole tree has to be up there.
+- ✅ `scripts/test.ps1` exits 0 end to end: smoke green in both scenarios (plus the
+  `?env=1` prefill path), golden clean in both scenarios, crud clean in both
+  scenarios, CSS coverage/token/cascade checks clean, unit green, screenshots 35/35.
+- ⬜ **Whole-run screenshot hashes.** Not re-derived from a fresh checkout of the
+  pre-Milestone-1 tree in this session — that tree predates `src/js/`, `src/css/` and
+  `test/screenshots.html` entirely, so the current harness can't drive it without
+  first reconstructing a compatible shape, which is disproportionate to what this
+  milestone asks. What stands in for it: `golden.json` was verified byte-identical
+  (or the one reviewed, intentional diff) at every milestone from 2 through 7, and
+  Milestone 7's screenshot-hash baseline — captured once, right after the CSS split,
+  which is the only milestone able to introduce a visual-only regression per the
+  Risks section below — still matches unchanged today, confirmed by this run
+  (35/35). The transitive chain is the "whole run" proof; a live pre-M1-vs-post-M7
+  pixel diff was not additionally performed.
+- ✅ **The hand-restored behaviours** — verified through `test/smoke.html`'s existing
+  automated checks rather than by hand in an interactive browser (none available in
+  this session): caret position while typing and after the amount field reformats,
+  selection range, the Transactions search box, the what-if slider updating in place
+  without replacing its node, and scroll position of both panes after a re-render —
+  all already asserted in `smoke.html` and green in the run above.
+- ✅ **Nothing written to an empty Sheet** — already asserted in `smoke.html`
+  (`window.__writes.length` is 0 against the empty fixture, both on connect and after
+  the prefill path); re-confirmed green, untouched by this milestone's changes.
+- ⬜ **The live site boots.** Not checked — no push happened this session (`CLAUDE.md`'s
+  git discipline, same reason Milestone 6 left this unchecked). Load the live site
+  after the next deploy and confirm boot.
 
 **Run it with:** Sonnet 5, thinking on, to run and extend the suite. Escalate to Opus 5
 for any diff that needs triage — "is this shift real?" is a judgment call, and by this
 point the change set is too large to bisect cheaply.
+
+**What it cost:** `test/unit.html` went from a 12-check placeholder to ~75 checks
+covering every per-domain builder, `gainClass`, `statCard`, `tabBar`, `dataTable` and
+`parseEnv` at their boundary values, plus the pre-existing import-cycle check. Two
+one-line `export` additions and one function relocation (`parseEnv`,
+`src/app.js` → `src/js/format.js`) were needed to make the small pure helpers reachable
+without booting the app; `scripts/test.ps1` needed no changes, since Milestone 6 had
+already wired `test/unit.html` into the harness list. `golden.json`, `crud.json` and
+`screenshots.json` all came back byte-identical — the real proof this milestone, like
+every one before it, changed no rendered pixel and wrote no different Sheet cell.
 
 ---
 

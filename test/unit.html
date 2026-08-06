@@ -20,20 +20,25 @@
 <script type="module">
 /* Unit tests against src/js/* directly, importing the real modules rather than
    driving the app through the DOM (that's smoke.html/golden.html/crud.html).
-   Milestone 6 (docs/plan.md) leaves this near-empty on purpose — Milestone 8
-   fills it in once the whole app has been through the split. What's here now
-   proves two things a boot check alone can't:
+   Milestone 6 (docs/plan.md) left this near-empty on purpose — Milestone 8 pays
+   that back now that the whole app has been through the module split. What's
+   here proves things the DOM harnesses can't reach directly:
      - the modules are genuinely importable as ES modules from outside the app
        shell, not just reachable from index.html;
      - the module graph the split produced has no import cycle — the plan's own
        warning is that a cycle fails at boot with an undefined binding, not at
-       the call site, so it's worth catching by inspection too. */
+       the call site, so it's worth catching by inspection too;
+     - buildViewModel()'s arithmetic, called directly rather than inferred from
+       rendered HTML (the "direct view-model check" Milestone 4 deferred, since
+       buildViewModel() was still sealed inside app.js's IIFE at that point);
+     - the small pure helpers (gainClass, statCard, tabBar, dataTable, parseEnv)
+       at the boundary values a screen walk wouldn't necessarily land on. */
 
-import { esc, fmtMoney, formatAmountDisplay } from '../src/js/format.js';
+import { esc, fmtMoney, fmtEGP, formatAmountDisplay, parseEnv } from '../src/js/format.js';
 import { TAG_SPENDING, ENTITIES } from '../src/js/constants.js';
 import { state } from '../src/js/state.js';
-import { computeLedger, toFieldRequired } from '../src/js/model.js';
-import { tabBar } from '../src/js/views/helpers.js';
+import { computeLedger, toFieldRequired, buildViewModel, gainClass } from '../src/js/model.js';
+import { tabBar, statCard, dataTable } from '../src/js/views/helpers.js';
 
 window.__errors = [];
 window.onerror = function (m, s, l, c) { window.__errors.push('ERROR: ' + m + ' @' + l + ':' + c); };
@@ -64,6 +69,207 @@ check('model.js: computeLedger on no transactions', computeLedger('Acct', []).le
 check('model.js: toFieldRequired is false for Starting Balance', toFieldRequired('Starting Balance'), false);
 check('model.js: toFieldRequired is true otherwise', toFieldRequired('Groceries'), true);
 check('views/helpers.js: tabBar renders the Overview tab active', tabBar('x', false).indexOf('data-act="xTabOverview"') !== -1, true);
+
+/* ------------------------------------------------------------ gainClass --- */
+
+section('gainClass: positive, negative and exactly zero');
+check('gainClass: positive gets the default positive class', gainClass(5), 'gain-pos');
+check('gainClass: negative gets the default negative class', gainClass(-5), 'gain-neg');
+check('gainClass: exactly zero counts as positive (n >= 0)', gainClass(0), 'gain-pos');
+check('gainClass: custom pair, positive side', gainClass(5, 'c-gain', 'c-loss'), 'c-gain');
+check('gainClass: custom pair, negative side', gainClass(-5, 'c-gain', 'c-loss'), 'c-loss');
+check('gainClass: custom pair, zero side', gainClass(0, 'c-gain', 'c-loss'), 'c-gain');
+note('(ESPP\'s real call site) gainClass(gain, "gain-pos-alt") only overrides the positive class:');
+check('gainClass: positive-only override applies on the positive side', gainClass(5, 'gain-pos-alt'), 'gain-pos-alt');
+check('gainClass: positive-only override still falls back to gain-neg on the negative side', gainClass(-5, 'gain-pos-alt'), 'gain-neg');
+
+/* ------------------------------------------------------------- statCard --- */
+
+section('statCard: per colour, escaping, valueClass');
+check('statCard: no colour renders the base class only', statCard('Label', '$1').indexOf('class="stat"') !== -1, true);
+check('statCard: c-gain colour', statCard('Label', '$1', 'c-gain').indexOf('class="stat c-gain"') !== -1, true);
+check('statCard: c-loss colour', statCard('Label', '$1', 'c-loss').indexOf('class="stat c-loss"') !== -1, true);
+check('statCard: label is escaped', statCard('<b>', '$1').indexOf('&lt;b&gt;') !== -1, true);
+check('statCard: valueHtml is passed through unescaped (caller already escaped it)', statCard('L', '<b>$1</b>').indexOf('<b>$1</b>') !== -1, true);
+check('statCard: valueClass is applied to the value div', statCard('L', '$1', '', 'gain-pos').indexOf('class="stat-value gain-pos"') !== -1, true);
+
+/* -------------------------------------------------------------- tabBar --- */
+
+section('tabBar: one call per screen that uses it');
+/* prefix, teal — the exact arguments each of the five call sites passes
+   (views/transactions.js, gold.js, certs.js, provident-fund.js, stocks.js). */
+[
+  ['tx', false], ['gold', false], ['certs', false], ['pf', false], ['stock', true],
+].forEach(function (row) {
+  var prefix = row[0], teal = row[1];
+  var overviewHtml = tabBar(prefix, false, teal);
+  check(prefix + ': Overview tab is active when manage=false', overviewHtml.indexOf('class="tab active" data-act="' + prefix + 'TabOverview"') !== -1, true);
+  check(prefix + ': Manage tab is not active when manage=false', overviewHtml.indexOf('class="tab" data-act="' + prefix + 'TabManage"') !== -1, true);
+  var manageHtml = tabBar(prefix, true, teal);
+  check(prefix + ': Overview tab is not active when manage=true', manageHtml.indexOf('class="tab" data-act="' + prefix + 'TabOverview"') !== -1, true);
+  check(prefix + ': Manage tab is active when manage=true', manageHtml.indexOf('class="tab active" data-act="' + prefix + 'TabManage"') !== -1, true);
+  check(prefix + ': tabs--teal only when the call site passes teal', overviewHtml.indexOf('tabs--teal') !== -1, !!teal);
+});
+note('Stocks is the one tabBar call site with teal=true (views/stocks.js); the other four omit it.');
+
+/* ------------------------------------------------------------ dataTable --- */
+
+section('dataTable: zero rows, one row, a row with no actions');
+var zeroRowsHtml = dataTable({ columns: [{ label: 'Name' }], rows: [], cells: function () { return ''; } });
+check('dataTable: zero rows still renders the header', zeroRowsHtml.indexOf('<thead><tr><th class="th">Name</th></tr></thead>') !== -1, true);
+check('dataTable: zero rows renders no <tr class="row">', zeroRowsHtml.indexOf('<tr class="row"') === -1, true);
+
+var oneRowHtml = dataTable({ rows: [{ index: 0, name: 'Alex' }], cells: function (r) { return '<td>' + esc(r.name) + '</td>'; } });
+check('dataTable: headerless (no columns) renders no <thead>', oneRowHtml.indexOf('<thead>') === -1, true);
+check('dataTable: one row renders exactly one <tr class="row">', (oneRowHtml.match(/<tr class="row"/g) || []).length, 1);
+check('dataTable: one row cell content', oneRowHtml.indexOf('<td>Alex</td>') !== -1, true);
+
+var noActionsHtml = dataTable({ rows: [{ index: 0 }], cells: function () { return '<td>x</td>'; } });
+check('dataTable: rowActions omitted renders no Edit/Delete buttons', noActionsHtml.indexOf('btn-edit') === -1 && noActionsHtml.indexOf('btn-del') === -1, true);
+
+var withActionsHtml = dataTable({
+  rows: [{ index: 2 }], cells: function () { return '<td>x</td>'; },
+  rowActions: { editAct: 'editThing', deleteAct: 'deleteThing', tdClass: 'act-td' },
+});
+check('dataTable: rowActions present renders both buttons addressed at row.index', withActionsHtml.indexOf('data-act="editThing" data-i="2"') !== -1
+  && withActionsHtml.indexOf('data-act="deleteThing" data-i="2"') !== -1, true);
+
+/* ------------------------------------------------------------ parseEnv --- */
+
+section('parseEnv: comments, padding, quotes, a missing "="');
+var envText = [
+  '# example .env',
+  '  GOOGLE_OAUTH_CLIENT_ID = abc123.apps.googleusercontent.com  ',
+  'SPREADSHEET_ID="1AbC has spaces"',
+  "SINGLE_QUOTED='value with spaces'",
+  'NOEQUALSSIGNLINE',
+  '',
+  '# trailing comment, ignored',
+].join('\n');
+var env = parseEnv(envText);
+check('parseEnv: comment line contributes no key', '# example .env' in env, false);
+check('parseEnv: padding around key and "=" is trimmed', env.GOOGLE_OAUTH_CLIENT_ID, 'abc123.apps.googleusercontent.com');
+check('parseEnv: double-quoted value is unwrapped', env.SPREADSHEET_ID, '1AbC has spaces');
+check('parseEnv: single-quoted value is unwrapped', env.SINGLE_QUOTED, 'value with spaces');
+check('parseEnv: line with no "=" is skipped, not a key with an empty value', 'NOEQUALSSIGNLINE' in env, false);
+check('parseEnv: exactly the 3 real keys survive (comments/blank/malformed do not)', Object.keys(env).length, 3);
+
+/* ------------------------------------------------------- buildViewModel --- */
+
+/* certificatesModel measures days-to-maturity against the real wall clock
+   (`new Date()`), which a byte-exact expectation can't depend on without going
+   stale the next calendar day. Freezing the global Date constructor for the
+   duration of this section — restored in `finally` — pins "today" without
+   touching model.js: every call site in this codebase only ever does
+   `new Date()` or `new Date(someString)`, so a real Date instance built from
+   RealDate covers both without needing a full Date polyfill. */
+function withFrozenDate(isoDate, fn) {
+  var RealDate = window.Date;
+  function FrozenDate(arg) {
+    return arguments.length === 0 ? new RealDate(isoDate) : new RealDate(arg);
+  }
+  window.Date = FrozenDate;
+  try { return fn(); } finally { window.Date = RealDate; }
+}
+
+section('buildViewModel(): per-domain builders against a frozen state fixture');
+
+/* A snapshot of every state.js key, so this fixture can be undone afterwards —
+   state is a module-scoped singleton, and nothing downstream in this file
+   should see it in a fixture shape. Every value in state.js is plain data
+   (strings/numbers/arrays/plain objects), so a JSON round-trip clones it. */
+var stateSnapshot = JSON.parse(JSON.stringify(state));
+
+state.accounts = ['Checking', 'Savings'];
+state.accountOwners = { Checking: 'Alex', Savings: 'Alex' };
+state.accountTags = { Checking: 'Spending', Savings: 'Saving > Other' };
+state.types = ['Starting Balance', 'Transfer'];
+state.tags = ['Spending', 'Saving > Other'];
+state.transactions = [
+  { Date: '2026-01-01', Amount: 1000, Description: 'Opening balance', 'Transaction Type': 'Starting Balance', 'From Account': 'Checking', 'To Account': '' },
+  { Date: '2026-01-10', Amount: 200, Description: 'Transfer to savings', 'Transaction Type': 'Transfer', 'From Account': 'Checking', 'To Account': 'Savings' },
+];
+state.goldItems = [
+  { Quantity: 2, Type: '24K', Brand: 'X', 'Weight (gm)': 5, Where: 'Vault', 'Purchase Price per Gram (EGP)': 3000, 'Purchase Date': '2024-01-01', 'Current Price per Gram (EGP)': 4000, 'As Of': '2026-01-01', Tag: 'Saving > Other' },
+];
+state.certItems = [
+  { 'Certificate Number': 'C-1', 'Product Name': 'Cert A', 'Open Date': '2025-01-01', Amount: 1000, Currency: 'USD', 'Interest Frequency': '1 Year', 'Maturity Date': '2026-02-15', 'Interest Rate': 0.1, Tag: 'Saving > Other' },
+];
+state.rates = [{ Currency: 'USD', 'Rate to EGP': 50, 'As Of': '2026-01-01' }];
+state.providentFund = { Balance: 20000, 'As Of': '2026-01-01', Tag: 'Saving > Other' };
+state.stockMeta = { Symbol: 'ACME', 'Current Price (USD)': 100, 'Cash (USD)': 50, 'As Of': '2026-01-01' };
+state.stockHoldings = [{ Source: 'Vested RSU', Label: 'Lot1', Quantity: 10, 'Cost Basis (USD)': 800, 'Acquired Date': '2025-01-01' }];
+state.stockVesting = [{ 'Vest Date': '2027-03-01', Grant: 'G1', Units: 5 }];
+state.planItems = [{ Step: '1', Item: 'Consolidate accounts', Status: 'Done', Notes: '', Version: 'v1' }];
+state.activeSheet = 'dashboard';
+
+/* try/finally so a bug in the fixture reports as a normal FAIL rather than an
+   uncaught exception that aborts the rest of this module script (the import-
+   cycle check below would never run), and so state is restored either way. */
+try {
+withFrozenDate('2026-01-15', function () {
+  var v = buildViewModel();
+
+  note('goldModel: 2 lots x 5gm @ 4000 now vs 3000 purchase');
+  check('goldModel: total current value', v.goldTotalCurrentDisplay, fmtEGP(10 * 4000));
+  check('goldModel: total purchase cost', v.goldTotalPurchaseDisplay, fmtEGP(10 * 3000));
+  check('goldModel: gain', v.goldGainDisplay, '+' + fmtEGP(10000));
+  check('goldModel: gain %', v.goldGainPctDisplay, '+33.3%');
+  check('goldModel: gain card class (positive)', v.goldGainCardClass, 'c-gain');
+
+  note('certificatesModel: 1000 USD @ 50 EGP/USD, matures 2026-02-15, "today" frozen at 2026-01-15 (31d out)');
+  check('certificatesModel: total current (principal x rate)', v.certTotalCurrentDisplay, fmtEGP(50000));
+  check('certificatesModel: total at maturity (principal x (1+rate) x fx)', v.certTotalMaturityDisplay, fmtEGP(55000));
+  check('certificatesModel: gain', v.certGainDisplay, '+' + fmtEGP(5000));
+  check('certificatesModel: maturity flag within the 60-day watch window', v.certGroups[0].rows[0].flagText, 'Matures in 31d');
+  check('certificatesModel: maturity flag class', v.certGroups[0].rows[0].flagClass, 'flag--soon');
+
+  note('stocksModel: 10 vested-RSU shares @ $100, $50 cash, 5 unvested units');
+  check('stocksModel: sellable now = share value + cash', v.sellableNowDisplay, fmtMoney(1050));
+  check('stocksModel: RSU gain (value - cost)', v.stockNowGainDisplay, '+' + fmtMoney(200));
+  check('stocksModel: unvested value at current price', v.unvestedTotalDisplay, fmtMoney(500));
+  check('stocksModel: vesting-by-year label groups by month then year', v.vestingByYear[0].label, 'Mar 2027');
+
+  note('providentFundModel: single record, no index/list/delete');
+  check('providentFundModel: balance', v.pfBalanceDisplay, fmtEGP(20000));
+
+  note('planModel: buckets plan items into their Step 1/2/3 groups');
+  check('planModel: step 1 has the one seeded item', v.planStepGroups[0].items.length, 1);
+  check('planModel: steps 2 and 3 are empty', v.planStepGroups[1].empty && v.planStepGroups[2].empty, true);
+
+  note('transactionsModel: default sort is Date desc, ties broken by original index desc');
+  check('transactionsModel: newest transaction sorts first', v.transactionRows[0].date, '2026-01-10');
+  check('transactionsModel: recent-transactions strip mirrors the same order', v.recentTransactions[0].amountDisplay, fmtMoney(200));
+
+  note('dashboardModel: composes gold + certificates + stocks + provident fund + saving cash by currency (functional-reqs.md#dashboard-totals)');
+  var expEgpNative = 40000 /* gold */ + 20000 /* PF */ + 200 /* Savings account balance */;
+  var expUsdNative = 1000 /* cert */ + 1050 /* sellable now */;
+  check('dashboardModel: EGP-native card', v.currencyCards[0].nativeDisplay, fmtEGP(expEgpNative));
+  check('dashboardModel: USD-native card', v.currencyCards[1].nativeDisplay, fmtMoney(expUsdNative));
+  check('dashboardModel: total savings = EGP-native + USD-native x rate (no EUR here)', v.totalSavingsEgpDisplay, fmtEGP(expEgpNative + expUsdNative * 50));
+  check('dashboardModel: maturity watch carries the cert (soon) and the sellable RSU line', v.maturityWatchRows.length, 2);
+  check('dashboardModel: Spending group subtotal is Checking\'s ledger balance', v.spendingGroups[0].subtotalDisplay, fmtMoney(800));
+  check('dashboardModel: Saving > Other group subtotal is Savings\' ledger balance', v.otherSavingGroups[0].subtotalDisplay, fmtMoney(200));
+
+  note('buildViewModel() is pure: same state, called twice, identical output');
+  var v2 = buildViewModel();
+  check('buildViewModel: purity — no shared intermediate mutated between calls', JSON.stringify(v2) === JSON.stringify(v), true);
+
+  note('ledgerModel: only populated when activeSheet is the account: pseudo-screen');
+  state.activeSheet = 'account:Checking';
+  var v3 = buildViewModel();
+  check('ledgerModel: current balance is the last ledger row\'s running balance', v3.ledgerCurrentBalanceDisplay, fmtMoney(800));
+  check('ledgerModel: rows are newest first', v3.ledgerRows[0].date, '2026-01-10');
+  check('ledgerModel: newest row type/class for a debit', v3.ledgerRows[0].typeClass, 'type-out');
+  check('ledgerModel: owner comes from accountOwners', v3.ledgerOwnerDisplay, 'Alex');
+});
+} catch (e) {
+  failures++;
+  log.push('  FAIL  buildViewModel fixture section threw: ' + (e && e.message || e));
+} finally {
+  /* Undo the fixture regardless of whether the checks above passed. */
+  Object.keys(stateSnapshot).forEach(function (k) { state[k] = stateSnapshot[k]; });
+}
 
 /* ------------------------------------------------- no import cycles --- */
 

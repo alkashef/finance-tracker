@@ -10,8 +10,10 @@ what you enter.
 
 ## How to run
 
-The app is three static files: `index.html`, `styles.css`, `app.js`. There is nothing
-to build and no dependencies to install.
+The app is static files — `index.html`, `src/css/*.css`, `src/app.js` and
+`src/js/*.js` — served as-is. There is nothing to build and no dependencies to
+install; `src/app.js` and `src/js/*.js` are plain ES modules the browser resolves
+itself. See [docs/design.md](docs/design.md) for the full layout.
 
 ### You need a local web server (not `file://`)
 
@@ -45,8 +47,10 @@ powershell -ExecutionPolicy Bypass -File scripts/serve.ps1
 A ~60-line PowerShell static server included in this repo. Same result, zero
 dependencies. Use `-Port 8080` to change the port. Ctrl+C stops it.
 
-**Hosted**: the three files are served as-is from GitHub Pages — deploying is just
-pushing them to the Pages-connected repo. Push all three together.
+**Hosted**: the whole tree is served as-is from GitHub Pages — deploying is just
+pushing it to the Pages-connected repo. Push the whole tree together; a module the
+push leaves out of date is a blank page before first paint, not one broken screen, so
+load the live site once after deploying.
 
 ### One-time setup (per user, per Google Cloud project)
 
@@ -124,11 +128,14 @@ matching; the app converts these on read, but Plain text avoids the issue entire
 ## Checking a change
 
 **Automated**: `powershell -ExecutionPolicy Bypass -File scripts\test.ps1` starts its
-own server on a free port, drives `test/smoke.html` and `test/golden.html` through
-headless Edge for every scenario, and prints one pass/fail summary. Needs Microsoft
-Edge installed; nothing else. `-Update` recaptures `test/golden.json` (the DOM
-baseline) from the current code — only do this after reviewing the diff, since a
-baseline captured after a change certifies the change.
+own server on a free port, drives `test/smoke.html`, `test/golden.html`,
+`test/crud.html` and `test/unit.html` through headless Edge for every scenario, hashes
+a screenshot of every screen against `test/screenshots.json`, and prints one pass/fail
+summary. Needs Microsoft Edge installed; nothing else. `-Update` recaptures
+`test/golden.json` (the DOM baseline), `test/crud.json` (the Sheets write-payload
+baseline) and `test/screenshots.json` (the per-screen pixel-hash baseline) from the
+current code — only do this after reviewing the diff, since a baseline captured after
+a change certifies the change.
 
 **By hand**: open <http://localhost:8723/test/smoke.html> with the server running. It
 drives every screen against a stubbed Sheets API and reports pass/fail — no network, no
@@ -140,7 +147,7 @@ to check the `config/.env` prefill path.
 - **[docs/functional-reqs.md](docs/functional-reqs.md)** — every business rule:
   tagging, balances, gold and certificate math, currency rates, stocks, dashboard
   totals.
-- **[docs/design.md](docs/design.md)** — architecture: the three-file layout, the
-  render loop, Sheet tab/column layout, and how auth works.
+- **[docs/design.md](docs/design.md)** — architecture: the `src/` module and CSS
+  layout, the render loop, Sheet tab/column layout, and how auth works.
 - **[CLAUDE.md](CLAUDE.md)** — conventions and workflow notes for AI agents working
   in this repo.

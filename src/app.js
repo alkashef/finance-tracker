@@ -3,7 +3,7 @@
  * event delegation, and boot. Everything else lives under src/js/ — see
  * docs/design.md#rendering-model for the render cycle this drives. */
 
-import { fmtMoney } from './js/format.js';
+import { fmtMoney, parseEnv } from './js/format.js';
 import { SCENARIO_MIN, SCENARIO_MAX } from './js/constants.js';
 import { state, set, setRenderer } from './js/state.js';
 import { buildViewModel } from './js/model.js';
@@ -124,27 +124,8 @@ function restoreConfig() {
 
    This does not breach the "no data in the app" rule: the file is untracked, holds
    no financial figures, and the repo ships only `config/.env.example` with
-   placeholders. Never read anything else from it, and never commit a real one. */
-function parseEnv(text) {
-  var out = {};
-  text.split(/\r?\n/).forEach(function (line) {
-    line = line.trim();
-    if (!line || line.charAt(0) === '#') return;
-    var eq = line.indexOf('=');
-    if (eq < 1) return;
-    var key = line.slice(0, eq).trim();
-    var val = line.slice(eq + 1).trim();
-    var q = val.charAt(0);
-    /* Quotes are optional, but honour them so a trailing space isn't swallowed
-       into an ID that then fails to match anything. */
-    if (val.length > 1 && (q === '"' || q === "'") && val.charAt(val.length - 1) === q) {
-      val = val.slice(1, -1);
-    }
-    out[key] = val;
-  });
-  return out;
-}
-
+   placeholders. Never read anything else from it, and never commit a real one.
+   parseEnv() itself lives in js/format.js — see the comment there. */
 function applyLocalDefaults() {
   /* A saved config always wins, so editing Settings locally survives a reload. */
   if (state.clientIdInput || state.spreadsheetIdInput) return;
