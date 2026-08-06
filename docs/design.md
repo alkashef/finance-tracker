@@ -38,6 +38,30 @@ what the app needs across every screen. The cycle is:
 Screens are chosen by `state.activeSheet` in `viewScreen()`. Per-account ledgers use
 the pseudo-screen id `account:<name>`.
 
+**`buildViewModel()` composes, it does not compute.** Every figure is produced by one
+of twelve per-domain builders — `shellModel`, `navModel`, `listsModel`,
+`transactionsModel`, `ledgerModel`, `goldModel`, `ratesModel`, `certificatesModel`,
+`stocksModel`, `providentFundModel`, `dashboardModel`, `planModel` — and
+`buildViewModel()` calls them in dependency order and merges their slices.
+
+A builder takes `state` plus whatever it needs from the builders before it, and
+returns the slice of the model its screens read. Two things cross domain boundaries
+and are therefore passed explicitly rather than re-derived:
+
+- **The shared intermediates.** `buildLedgers()` (every account's running ledger, read
+  by the ledger screen and twice by the dashboard) and `buildRatesMap()` (currency →
+  rate to EGP, read by certificates and the dashboard) are built once, up front.
+- **The totals one domain owes another.** `goldModel`, `certificatesModel`,
+  `stocksModel` and `providentFundModel` return `{ view, totals }` instead of a bare
+  slice: `view` is merged into the model, `totals` is handed to `dashboardModel`, which
+  runs last because savings-by-currency and the maturity watch are made of the other
+  four domains' numbers.
+
+No builder reads `state` outside its own argument and none mutates what it is handed —
+sorts and reversals copy first, because the ledgers and the totals are shared. There is
+deliberately no per-screen laziness or caching: the whole model is rebuilt on every
+keystroke, which at this size costs nothing worth the complexity.
+
 **Events are delegated**, not re-bound per render: two document-level listeners
 dispatch on data attributes.
 

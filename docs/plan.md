@@ -1,7 +1,7 @@
 # Finance Tracker — refactoring plan
 
 Eight milestones that remove the code smells left after the app was rewritten off its
-design tool. Milestones 1–3 have landed; 4 onwards have not been started. The "where
+design tool. Milestones 1–4 have landed; 5 onwards have not been started. The "where
 the code stands" figures below are the diagnosis this plan was written from — they
 describe the starting point, not the tree today.
 
@@ -303,34 +303,60 @@ of three times.
 
 ## Milestone 4 — Split `buildViewModel()`
 
-1. ⬜ One builder per domain — `ledgerModel`, `transactionsModel`, `goldModel`,
+1. ✅ One builder per domain — `ledgerModel`, `transactionsModel`, `goldModel`,
    `certificatesModel`, `stocksModel`, `dashboardModel`, `planModel` — each taking
-   `state` and returning its slice.
-2. ⬜ Compute the shared intermediates (`ledgers`, `ratesMap`, gold total value, stock
+   `state` and returning its slice. — twelve in the end: the seven named plus
+   `shellModel`, `navModel`, `listsModel`, `ratesModel` and `providentFundModel`, which
+   is what the other ~180 lines of the function turned out to be. Documented in
+   [design.md](design.md#rendering-model).
+2. ✅ Compute the shared intermediates (`ledgers`, `ratesMap`, gold total value, stock
    totals) once and pass them in explicitly rather than recomputing per builder. The
-   dashboard consumes gold, certificate and stock figures, so ordering matters.
-3. ⬜ Do **not** add per-screen lazy building or caching. The whole model rebuilds on
+   dashboard consumes gold, certificate and stock figures, so ordering matters. —
+   `buildLedgers()` / `buildRatesMap()` run first; the four domains the dashboard
+   reports on return `{ view, totals }` and `dashboardModel` runs last on their
+   `totals`. The certificates' per-currency native principal moved out of the dashboard
+   loop into `certificatesModel`, which was already walking the same rows.
+3. ✅ Do **not** add per-screen lazy building or caching. The whole model rebuilds on
    every keystroke today and is fast enough; that would be complexity bought with a
-   tidiness argument.
+   tidiness argument. — none added; the section comment says so, so the next reader
+   doesn't add it either.
 
 **Tests**
 
-- ⬜ **Golden DOM snapshot**, both scenarios. This milestone runs before modules exist,
+- ✅ **Golden DOM snapshot**, both scenarios. This milestone runs before modules exist,
   so `buildViewModel()` is still sealed in the IIFE and can't be called directly — the
   snapshot is the available proxy. The direct view-model golden is deferred to
-  Milestone 8.
-- ⬜ **Arithmetic against the spec, not the baseline.** With gold, certificates, stock
+  Milestone 8. — byte-identical in both scenarios; `golden.json` untouched.
+- ✅ **Arithmetic against the spec, not the baseline.** With gold, certificates, stock
   and provident fund all non-zero, assert total savings equals the formula in
   [functional-reqs.md](functional-reqs.md#dashboard-totals) — EGP + USD + EUR converted,
   unvested stock excluded. A snapshot happily preserves a pre-existing bug; this
-  doesn't.
-- ⬜ **Purity.** Drive the same screen twice with identical state and assert an identical
-  snapshot — catches a builder that mutates a shared intermediate the next one reads.
-- ⬜ **Empty state.** Every screen against an empty Sheet: no rows, no rates, no stock
-  meta. Division-by-zero and `undefined` land here.
+  doesn't. — `expectedSavings()` in `smoke.html` re-derives all three natives and the
+  total from the raw fixture columns. Proven to fail: swapping the dashboard's
+  `certificates.nativeEgp` for `nativeUsd` was caught and named the EGP card.
+- ✅ **Purity.** Drive the same screen twice with identical state and assert an identical
+  snapshot — catches a builder that mutates a shared intermediate the next one reads. —
+  done for all nine screens, and proven to fail on an accumulator hoisted out of
+  `certificatesModel` to module scope. It has a blind spot worth knowing: a mutation
+  that *settles* — a builder sorting one of `state`'s own arrays in place — leaves
+  every render after the first agreeing with each other. So a second, baseline-free
+  check walks the transaction rows' `data-i` back to the fixture rows they came from;
+  that one catches the reorder (the golden snapshot does too, but only because this
+  fixture's row order is visible in the DOM).
+- ✅ **Empty state.** Every screen against an empty Sheet: no rows, no rates, no stock
+  meta. Division-by-zero and `undefined` land here. — golden and smoke both walk every
+  screen in `?scenario=empty`; the new arithmetic check reports `EGP 0` across the board
+  there with no JS errors.
 
 **Run it with:** Opus 5, thinking on. 399 lines is the easy part; the dashboard's
 dependency on three other domains is what a weaker model gets subtly wrong.
+
+**What it cost:** `app.js` grew 2,424 → 2,600 lines. `buildViewModel()` itself went
+from 399 lines to 39 — a list of calls in dependency order — and the work behind it is
+now twelve functions of 10–90 lines, each nameable in a sentence. The ~140 added lines
+are the builder signatures, the `{ view, totals }` wrappers and the section comment
+that records the contract. Nothing about a screen's arithmetic changed, which is what
+the byte-identical golden snapshot says.
 
 ---
 

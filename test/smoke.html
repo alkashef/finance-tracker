@@ -65,6 +65,99 @@ function check(name, actual, expected) {
 function note(text) { log.push('        ' + text); }
 function section(text) { log.push('\n' + text); }
 
+/* Compares two rendered snapshots without dumping hundreds of lines of HTML into
+   the report: on a mismatch it names the first differing character and clips
+   around it, escaped so the clip renders as text instead of parsing as markup. */
+function checkSame(name, actual, expected) {
+  if (actual === expected) { log.push('  pass  ' + name); return; }
+  failures++;
+  var i = 0;
+  while (i < actual.length && i < expected.length && actual[i] === expected[i]) i++;
+  var clip = function (s) {
+    return s.slice(Math.max(0, i - 30), i + 50).replace(/[&<>]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
+    });
+  };
+  log.push('  FAIL  ' + name + ' — differs at char ' + i
+    + ' — first render …' + clip(expected) + '…, second …' + clip(actual) + '…');
+}
+
+function panes() {
+  return document.getElementById('sidebar').innerHTML + '\n' + document.getElementById('main').innerHTML;
+}
+
+/* The three display formats the dashboard cards use, restated here so the
+   arithmetic check below owns its expected strings end to end. */
+function egp(n) {
+  var v = Number(n) || 0;
+  return (v < 0 ? '-EGP ' : 'EGP ') + Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+function money(n) {
+  var v = Number(n) || 0;
+  return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function eur(n) {
+  var v = Number(n) || 0;
+  return (v < 0 ? '-€' : '€') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/* Re-derives the dashboard's savings totals from the fixture rows, straight off
+   docs/functional-reqs.md § Dashboard totals — EGP = EGP certificates + gold
+   current value + provident fund + cash in every non-Spending account; USD =
+   USD certificates + sellable stock; EUR = EUR certificates; total = the three
+   converted to EGP, with unvested stock left out. It works from the raw fixture
+   columns rather than any of app.js's intermediates on purpose: the golden
+   snapshot happily preserves a wrong figure it was captured with, and this is
+   the check that doesn't. */
+function expectedSavings(data) {
+  var accountRows = data[0], txRows = data[3], goldRows = data[5], certRows = data[6];
+  var rateRows = data[7], pfRows = data[8], stockMeta = data[9][0] || [];
+  var holdingRows = data[10], vestingRows = data[11];
+  var num = function (x) { return parseFloat(x) || 0; };
+
+  /* An account's balance is its transactions netted: out of it negative, into
+     it positive, a transfer to itself ignored. */
+  function balanceOf(name) {
+    return txRows.reduce(function (bal, t) {
+      var amt = num(t[1]), from = t[4], to = t[5];
+      if (from === name && to === name) return bal;
+      if (from === name && !to) return bal + amt;
+      if (from === name) return bal - amt;
+      if (to === name) return bal + amt;
+      return bal;
+    }, 0);
+  }
+  /* Matches on the currency code, because the spec names exactly three. app.js
+     buckets anything it doesn't recognise into EGP; the two only diverge on a
+     fourth currency, which is a question the spec doesn't answer — a fixture that
+     adds one should fail here and get it answered rather than pass quietly. */
+  function certsIn(code) {
+    return certRows.filter(function (c) { return c[4] === code; })
+      .reduce(function (sum, c) { return sum + num(c[3]); }, 0);
+  }
+  function rateOf(code) {
+    var row = rateRows.filter(function (r) { return r[0] === code; })[0];
+    return row ? num(row[1]) : 0;
+  }
+
+  var savingCash = accountRows.filter(function (a) { return a[2] !== 'Spending'; })
+    .reduce(function (sum, a) { return sum + balanceOf(a[0]); }, 0);
+  var goldValue = goldRows.reduce(function (sum, g) { return sum + num(g[0]) * num(g[3]) * num(g[7]); }, 0);
+  var pf = pfRows.length ? num(pfRows[0][0]) : 0;
+  var price = num(stockMeta[1]);
+  var sellable = holdingRows.reduce(function (sum, h) { return sum + num(h[2]) * price; }, 0) + num(stockMeta[2]);
+
+  var egpNative = certsIn('EGP') + goldValue + pf + savingCash;
+  var usdNative = certsIn('USD') + sellable;
+  var eurNative = certsIn('EUR');
+  return {
+    egpNative: egpNative, usdNative: usdNative, eurNative: eurNative,
+    usdRate: rateOf('USD'),
+    unvestedUsd: vestingRows.reduce(function (sum, x) { return sum + num(x[2]) * price; }, 0),
+    total: egpNative + usdNative * rateOf('USD') + eurNative * rateOf('EUR'),
+  };
+}
+
 function el(sel) { return document.querySelector(sel); }
 function click(sel) {
   var e = el(sel);
@@ -246,6 +339,87 @@ var steps = [
     if (SCENARIO === 'empty') { note('skipped (no rows)'); return; }
     var html = document.getElementById('main').innerHTML;
     check('markup in Sheet data is escaped, not injected', html.indexOf('stuff &lt;b&gt;') !== -1, true);
+  },
+
+  /* The view model is built by one builder per domain, in dependency order, with
+     the ledgers, the rate map and each domain's totals passed along explicitly.
+     The two checks below are the ones the golden snapshot cannot make: that the
+     dashboard's arithmetic matches the spec rather than whatever the baseline
+     was captured with, and that no builder leaves a mark on the state the next
+     render reads. */
+  function () {
+    section('dashboard totals, against the spec');
+    click('[data-act="goDashboard"]');
+  },
+  function () {
+    var exp = expectedSavings(DATA);
+    var natives = document.querySelectorAll('.cc-native');
+    var total = el('.savings-banner-value').textContent;
+    check('EGP native = certs + gold + provident fund + saving cash', natives[0].textContent, egp(exp.egpNative));
+    check('USD native = USD certs + sellable stock', natives[1].textContent, money(exp.usdNative));
+    check('EUR native = EUR certs', natives[2].textContent, eur(exp.eurNative));
+    check('total savings = the three converted to EGP', total, egp(exp.total));
+    if (exp.unvestedUsd > 0) {
+      /* Would move the total by this much if it were counted — so the equality
+         above is what proves the exclusion, and this names the amount at stake. */
+      check('unvested stock is excluded', total !== egp(exp.total + exp.unvestedUsd * exp.usdRate), true);
+      note('unvested left out: ' + egp(exp.unvestedUsd * exp.usdRate));
+    } else {
+      note('unvested exclusion not exercised (no vesting rows in this scenario)');
+    }
+  },
+
+  function () {
+    section('purity — identical state renders identical DOM');
+    var screens = [
+      ['dashboard', 'goDashboard'], ['transactions', 'goTransactions'], ['gold', 'goGold'],
+      ['certificates', 'goCerts'], ['stocks', 'goStocks'], ['provident fund', 'goProvidentFund'],
+      ['accounts', 'goAccounts'], ['plan', 'goPlan'],
+    ];
+    screens.forEach(function (pair) {
+      if (!click('[data-act="' + pair[1] + '"]')) return;
+      var before = panes();
+      /* Two toggles put every state key back exactly where it was, and each one
+         forces a full rebuild of the whole model — so a difference here is a
+         builder that wrote to the state or to something the state still holds. */
+      click('[data-act="toggleSidebar"]');
+      click('[data-act="toggleSidebar"]');
+      checkSame('rebuild is stable — ' + pair[0], panes(), before);
+    });
+  },
+  function () {
+    if (!clickIfPresent('[data-act="selectAccount"][data-i="0"]')) {
+      note('account ledger skipped (no accounts in this scenario)');
+      return;
+    }
+    var before = panes();
+    click('[data-act="toggleSidebar"]');
+    click('[data-act="toggleSidebar"]');
+    checkSame('rebuild is stable — account ledger', panes(), before);
+  },
+  function () {
+    /* The stability check above cannot see a builder that reorders one of the
+       state's own arrays: the damage settles after the first render, so every
+       render after it agrees. What it breaks is the row indices — `data-i` is a
+       position in `state`, which is a position in the Sheet — so check those
+       directly, against the fixture rather than against a baseline. Every screen
+       above has been built many times over by now. */
+    if (!DATA[3].length) { note('row identity skipped (no transactions in this scenario)'); return; }
+    click('[data-act="goTransactions"]');
+    typeInto('[data-f="search"]', '');
+    click('[data-act="txTabManage"]');
+    /* Both sides go through the same escape, so equality is untouched and the
+       fixture's deliberate `<b>` can't reach the report as live markup. */
+    var enc = function (t) {
+      return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; });
+    };
+    DATA[3].forEach(function (row, i) {
+      if (!click('[data-act="editTx"][data-i="' + i + '"]')) return;
+      check('row ' + i + ' still addresses the Sheet row it came from',
+        enc(el('[data-f="txDate"]').value + ' / ' + el('[data-f="txDescription"]').value),
+        enc(row[0] + ' / ' + row[2]));
+      click('[data-act="cancelTxForm"]');
+    });
   },
 
   function () {
