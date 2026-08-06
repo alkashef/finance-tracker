@@ -110,16 +110,16 @@ it, and that is where the ability to bisect is lost.
 
 ## Milestones at a glance
 
-| # | Milestone | Model | Thinking |
-| --- | --- | --- | --- |
-| 1 | Safety net — the runner and harnesses | Sonnet 5 | on |
-| 2 | Housekeeping — dead code and `scripts/` | Haiku 4.5 | off |
-| 3 | Descriptor-driven CRUD | **Opus 5** | **hard** |
-| 4 | Split `buildViewModel()` | **Opus 5** | on |
-| 5 | Shared view helpers | Sonnet 5 | on |
-| 6 | `src/js/` — ES modules | Sonnet 5 | on |
-| 7 | `src/css/` — tokens and split | Sonnet 5 | on |
-| 8 | Re-verify and document | Sonnet 5 → Opus 5 | on |
+| # | Milestone | Status | Model | Thinking |
+| --- | --- | --- | --- | --- |
+| 1 | Safety net — the runner and harnesses | ✅ done | Sonnet 5 | on |
+| 2 | Housekeeping — dead code and `scripts/` | ✅ done | Haiku 4.5 | off |
+| 3 | Descriptor-driven CRUD | ✅ done | **Opus 5** | **hard** |
+| 4 | Split `buildViewModel()` | ✅ done | **Opus 5** | on |
+| 5 | Shared view helpers | ⬜ | Sonnet 5 | on |
+| 6 | `src/js/` — ES modules | ⬜ | Sonnet 5 | on |
+| 7 | `src/css/` — tokens and split | ⬜ | Sonnet 5 | on |
+| 8 | Re-verify and document | ⬜ | Sonnet 5 → Opus 5 | on |
 
 Switch model with `/model`; Fast mode (`/fast`) keeps Opus's capability with faster
 output. "Thinking" means extended thinking — toggle it, or use *think* / *think hard* /
@@ -137,20 +137,20 @@ not a crash — it is a plausible-looking refactor that changes a number.
 which is the only question the rest of this plan asks. **Build this before touching any
 app code.**
 
-1. ⬜ **The runner** (`scripts/test.ps1`). Server on a free port, headless Edge over
+1. ✅ **The runner** (`scripts/test.ps1`). Server on a free port, headless Edge over
    every harness × scenario, one summary, exit 0/1. `-Update` rewrites
    `test/golden.json`; nothing else may. It references `serve.ps1` at the repo root
    until Milestone 2 moves it.
-2. ⬜ **Golden DOM snapshot** (`test/golden.html`). Walk every screen and both tabs,
+2. ✅ **Golden DOM snapshot** (`test/golden.html`). Walk every screen and both tabs,
    serialize `#sidebar.innerHTML` + `#main.innerHTML` per screen, compare to
    `test/golden.json`. Fixed screen order and fixed expand/collapse state, or the
    snapshot isn't reproducible. Diff output must name the screen and show the first
    differing span — at 700 lines of HTML, anything less is unusable.
-3. ⬜ **Write-payload capture.** `window.__writes` records only sheet *names* today.
+3. ✅ **Write-payload capture.** `window.__writes` records only sheet *names* today.
    Extend the stub `fetch` to record `{ range, headers, rows }` for every PUT. This is
    the only thing that will catch Milestone 3's worst failure — a value written under
    the wrong header.
-4. ⬜ **CSS coverage check.** While walking the screens, collect every class name in the
+4. ✅ **CSS coverage check.** While walking the screens, collect every class name in the
    DOM, parse the class selectors out of the stylesheet, report *unused* selectors and
    *undefined* classes.
 
@@ -159,13 +159,13 @@ app modules.
 
 **Tests**
 
-- ⬜ The runner exits **1** when a check fails: break one assertion deliberately and
+- ✅ The runner exits **1** when a check fails: break one assertion deliberately and
   confirm it. A runner that always exits 0 is worse than no runner.
-- ⬜ Baseline captured against unmodified code, then a second run with no changes is
+- ✅ Baseline captured against unmodified code, then a second run with no changes is
   clean — proves the snapshot is deterministic, not accidentally passing.
-- ⬜ `-Update` is the only path that rewrites `golden.json`; a plain run leaves it
+- ✅ `-Update` is the only path that rewrites `golden.json`; a plain run leaves it
   byte-identical.
-- ⬜ Both scenarios (`populated`, `?scenario=empty`) and the `?env=1` prefill path all
+- ✅ Both scenarios (`populated`, `?scenario=empty`) and the `?env=1` prefill path all
   drive to completion with no JS errors.
 
 **Run it with:** Sonnet 5, thinking on. Self-contained new code against an existing
@@ -177,14 +177,14 @@ harness with a clear spec.
 
 All the zero-risk work in one commit. Nothing here can change a rendered figure.
 
-1. ⬜ Remove the 6 `.about-*` classes, `.mb-0` and `.mb-24` from `styles.css`.
-2. ⬜ Rename `.sb-about` → `.sb-footer-nav`, or fold it into an existing rule.
-3. ⬜ Comment `v.scenarioInputs` to record that it is read via `lastVm`, so the next
+1. ✅ Remove the 6 `.about-*` classes, `.mb-0` and `.mb-24` from `styles.css`.
+2. ✅ Rename `.sb-about` → `.sb-footer-nav`, or fold it into an existing rule.
+3. ✅ Comment `v.scenarioInputs` to record that it is read via `lastVm`, so the next
    reader doesn't delete it.
-4. ⬜ `git mv serve.ps1 scripts/serve.ps1`. **Its `$root` must climb one extra level** —
+4. ✅ `git mv serve.ps1 scripts/serve.ps1`. **Its `$root` must climb one extra level** —
    `Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)`. Left alone it
    serves `scripts/`, which starts cleanly and 404s everything.
-5. ⬜ Update the run command in `README.md` and `CLAUDE.md`, and the server path in
+5. ✅ Update the run command in `README.md` and `CLAUDE.md`, and the server path in
    `scripts/test.ps1`.
 
 The `src/` half of the layout is *not* done here — milestones 6 and 7 write there
@@ -192,16 +192,16 @@ directly, so nothing moves twice.
 
 **Tests**
 
-- ⬜ CSS coverage check reports **0 unused and 0 undefined** classes. This is the real
+- ✅ CSS coverage check reports **0 unused and 0 undefined** classes. This is the real
   test: it re-derives the dead list independently rather than trusting the one above.
-- ⬜ Golden snapshot: expect **exactly one diff**, the `sb-about` → `sb-footer-nav` class
+- ✅ Golden snapshot: expect **exactly one diff**, the `sb-about` → `sb-footer-nav` class
   name in the sidebar. Review it, then `-Update`. Any second diff is a bug.
-- ⬜ Grep `app.js` and `index.html` for each deleted class name — zero hits *before*
+- ✅ Grep `app.js` and `index.html` for each deleted class name — zero hits *before*
   deleting, not after.
-- ⬜ `scripts/serve.ps1` serves the **repo root**: `/index.html`, `/app.js`,
+- ✅ `scripts/serve.ps1` serves the **repo root**: `/index.html`, `/app.js`,
   `/config/.env`, `/test/smoke.html` all 200. Check by request, not by eye — a wrong
   `$root` looks like a healthy server.
-- ⬜ Runner green through the moved server, both scenarios.
+- ✅ Runner green through the moved server, both scenarios.
 
 **Run it with:** Haiku 4.5, thinking off. Every edit is enumerated above, and the
 judgment call (the coverage check) was already written in Milestone 1.
