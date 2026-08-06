@@ -27,8 +27,12 @@ export function viewCerts(v) {
     + field('Currency', textInput('rateCurrency', state.rateForm.currency, ' placeholder="USD"'))
     + field('Rate to EGP', numInput('rateValue', state.rateForm.rate))
     + field('As Of', dateInput('rateAsOf', state.rateForm.asOf))
+    + '<button class="btn-ghost btn-ghost--tight" data-act="fetchRate">Fetch latest</button>'
     + '<button class="btn-p btn-p--tight btn-p--blue" data-act="applyRateUpdate">Set rate</button>'
     + '</div>'
+    + '<p class="panel-note">Fetch looks up the currency above against EGP via '
+    + '<a href="https://www.exchangerate-api.com/docs/free" target="_blank" rel="noopener">open.er-api.com</a> '
+    + '(no key needed) and fills Rate and As Of — review, then click Set rate.</p>'
     + '</div>'
     + '<div class="panel">'
     + '<div class="grid cert-form-a">'

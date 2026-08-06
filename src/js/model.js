@@ -427,6 +427,7 @@ function stocksModel(s) {
       quantityDisplay: qty.toLocaleString('en-US', { maximumFractionDigits: 4 }),
       costDisplay: fmtMoney(cost), valueDisplay: fmtMoney(val),
       gainDisplay: signed(gain, fmtMoney), gainClass: gainClass(gain),
+      tagDisplay: h.Tag || TAG_SAVING_OTHER,
     };
   });
   var heldQty = rsuNowQty + esppNowQty;

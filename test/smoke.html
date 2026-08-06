@@ -42,7 +42,7 @@ var DATA = SCENARIO === 'empty' ? EMPTY : POPULATED;
    without it the stub 404s, which is what the hosted site and CI always see.
    The fixture deliberately includes a comment, padded spaces and a quoted value. */
 var LOCAL_ENV = new URLSearchParams(location.search).get('env') === '1'
-  ? '# local defaults\nGOOGLE_OAUTH_CLIENT_ID = env123.apps.googleusercontent.com\nSPREADSHEET_ID="env-sheet-id"\nUNUSED_KEY=ignored\n'
+  ? '# local defaults\nGOOGLE_OAUTH_CLIENT_ID = env123.apps.googleusercontent.com\nSPREADSHEET_ID="env-sheet-id"\nGOLDAPI-KEY=env-gold-key\nUNUSED_KEY=ignored\n'
   : null;
 
 installHarness(DATA, { localEnv: LOCAL_ENV });
@@ -243,10 +243,67 @@ var steps = [
   function () { click('[data-act="txTabManage"]'); screen('transactions/manage', '[data-f="txAmount"]'); },
   function () { click('[data-act="goGold"]'); screen('gold/overview', '.stat-grid'); },
   function () { click('[data-act="goldTabManage"]'); screen('gold/manage', '[data-f="goldPriceCurrent"]'); },
+  function () {
+    section('gold price fetch');
+    var envHint = /Prefilled from your local/.test(document.getElementById('main').textContent);
+    if (LOCAL_ENV) {
+      check('config/.env GOLDAPI-KEY prefills the key field', el('[data-f="goldApiKey"]').value, 'env-gold-key');
+      check('prefill is disclosed on the Gold Manage screen', envHint, true);
+    } else {
+      check('no .env leaves the GoldAPI.io key empty', el('[data-f="goldApiKey"]').value, '');
+      check('no .env shows no prefill hint here', envHint, false);
+    }
+    /* Cleared explicitly so the guard-clause check below is deterministic
+       regardless of whether this run prefilled a key. */
+    typeInto('[data-f="goldApiKey"]', '');
+    click('[data-act="fetchGoldPrice"]');
+    check('fetch without a key asks for one', /Paste a GoldAPI\.io key first/.test(document.body.textContent), true);
+  },
+  function () {
+    typeInto('[data-f="goldApiKey"]', 'test-key');
+    click('[data-act="fetchGoldPrice"]');
+  },
+  function () {
+    check('fetch with a key surfaces a clean parse error under the stub', /GoldAPI\.io response had no 24k gram price/.test(document.body.textContent), true);
+    check('no unhandled JS error from the fetch path', window.__errors.length, 0);
+    typeInto('[data-f="goldApiKey"]', '');
+  },
   function () { click('[data-act="goCerts"]'); screen('certs/overview', '.stat-grid'); },
   function () { click('[data-act="certsTabManage"]'); screen('certs/manage', '[data-f="rateCurrency"]'); },
+  function () {
+    section('currency rate fetch');
+    check('rate fetch button renders', !!el('[data-act="fetchRate"]'), true);
+    click('[data-act="fetchRate"]');
+    check('fetch without a currency asks for one', /Enter a currency code first/.test(document.body.textContent), true);
+  },
+  function () {
+    typeInto('[data-f="rateCurrency"]', 'usd');
+    click('[data-act="fetchRate"]');
+  },
+  function () {
+    check('fetch with a currency surfaces a clean parse error under the stub', /Exchange-rate lookup failed for USD/.test(document.body.textContent), true);
+    check('no unhandled JS error from the fetch path', window.__errors.length, 0);
+    typeInto('[data-f="rateCurrency"]', '');
+  },
   function () { click('[data-act="goStocks"]'); screen('stocks/overview', '.whatif'); },
   function () { click('[data-act="stockTabManage"]'); screen('stocks/manage', '[data-f="holdingQuantity"]'); },
+  function () {
+    section('stock price fetch');
+    check('stock fetch key input renders', !!el('[data-f="stockApiKey"]'), true);
+    click('[data-act="fetchStockPrice"]');
+    check('fetch without a key asks for one', /Paste an Alpha Vantage key first/.test(document.body.textContent), true);
+  },
+  function () {
+    typeInto('[data-f="stockApiKey"]', 'test-key');
+    typeInto('[data-f="stockSymbol"]', 'TDC');
+    click('[data-act="fetchStockPrice"]');
+  },
+  function () {
+    check('fetch with a key+symbol surfaces a clean parse error under the stub', /Alpha Vantage returned no price for TDC/.test(document.body.textContent), true);
+    check('no unhandled JS error from the fetch path', window.__errors.length, 0);
+    typeInto('[data-f="stockApiKey"]', '');
+    typeInto('[data-f="stockSymbol"]', '');
+  },
   function () { click('[data-act="goProvidentFund"]'); screen('provident fund', '.stat-grid'); },
   function () { click('[data-act="pfTabManage"]'); screen('provident fund/manage', '[data-f="pfBalance"]'); },
   function () { click('[data-act="goAccounts"]'); screen('accounts', '[data-f="acctName"]'); },

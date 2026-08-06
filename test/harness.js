@@ -23,6 +23,7 @@ function installHarness(data, opts) {
   });
   window.confirm = function () { return true; };
   localStorage.removeItem('financeTracker.config');
+  localStorage.removeItem('financeTracker.marketDataKeys');
 
   window.google = { accounts: { oauth2: { initTokenClient: function (cfg) {
     return { requestAccessToken: function () { cfg.callback({ access_token: 'stub', expires_in: 3600 }); } };

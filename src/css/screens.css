@@ -93,21 +93,6 @@
   margin: 24px 0 16px 0;
 }
 
-.sec-sub {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #9aa0a8;
-  margin-bottom: 12px;
-}
-
-.sec-sub--spaced { margin: 20px 0 12px 0; }
-
 .sec-recent {
   display: flex;
   align-items: center;

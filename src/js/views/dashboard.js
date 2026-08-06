@@ -59,39 +59,35 @@ export function viewDashboard(v) {
       '<div class="group-grid">' + ownerGroupCards(v.spendingGroups) + '</div>'
       + when(!v.hasSpendingAccounts, '<div class="empty-note">No spending accounts yet — tag an account "Spending" in Accounts.</div>'));
 
-  var school = '<div class="sec-sub" data-act="toggleDashSchool">' + chevron(state.dashSchoolOpen) + 'School</div>'
-    + when(state.dashSchoolOpen,
-      '<div class="group-grid">'
-      + v.schoolAccountRows.map(function (r) {
-        return '<div class="school-card"><div class="stat-label">' + esc(r.name) + '</div><div class="school-value">' + esc(r.balanceDisplay) + '</div></div>';
-      }).join('')
-      + '</div>'
-      + when(!v.hasSchoolAccounts, '<div class="empty-note">No accounts tagged "Saving &gt; School" yet.</div>'));
+  var school = '<div class="group-grid">'
+    + v.schoolAccountRows.map(function (r) {
+      return '<div class="school-card"><div class="stat-label">' + esc(r.name) + '</div><div class="school-value">' + esc(r.balanceDisplay) + '</div></div>';
+    }).join('')
+    + '</div>'
+    + when(!v.hasSchoolAccounts, '<div class="empty-note">No accounts tagged "Saving &gt; School" yet.</div>');
 
-  var other = '<div class="sec-sub sec-sub--spaced" data-act="toggleDashOther">' + chevron(state.dashOtherOpen) + 'Other (Stocks, Gold, Certificates &amp; parked cash)</div>'
-    + when(state.dashOtherOpen,
-      '<div class="group-grid">'
-      + when(v.hasCerts, '<div class="wide-card"><div class="group-title">Certificates</div><div class="stat-row">'
-        + statCardSm('Current EGP value', esc(v.certTotalCurrentDisplay), 'c-blue')
-        + statCardSm('At maturity', esc(v.certTotalMaturityDisplay), 'c-purple')
-        + statCardSm('Gain vs principal', esc(v.certGainDisplay) + ' (' + esc(v.certGainPctDisplay) + ')', v.certGainCardClass)
-        + '</div></div>')
-      + '</div>'
-      + '<div class="group-grid">'
-      + when(v.hasGold, '<div class="wide-card"><div class="group-title">Gold</div><div class="stat-row">'
-        + statCardSm('Current value', esc(v.goldTotalCurrentDisplay), 'c-amber')
-        + statCardSm('Grams held', esc(v.goldTotalGramsDisplay), 'c-purple')
-        + statCardSm('Gain vs cost', esc(v.goldGainDisplay), v.goldGainCardClass)
-        + '</div></div>')
-      + '</div>'
-      + '<div class="group-grid">'
-      + when(v.hasStocks, '<div class="wide-card"><div class="group-title">Stocks' + esc(v.stockSymbolSuffix) + '</div><div class="stat-row">'
-        + statCardSm('Sellable now', esc(v.sellableNowDisplay), 'c-teal')
-        + statCardSm('🔒 Vesting later', esc(v.unvestedTotalDisplay), 'c-slate')
-        + statCardSm('Gain if sold now', esc(v.stockNowGainDisplay) + ' (' + esc(v.stockNowGainPctDisplay) + ')', 'c-green', v.stockNowGainClass)
-        + '</div></div>')
-      + '</div>'
-      + '<div class="group-grid">' + ownerGroupCards(v.otherSavingGroups) + '</div>');
+  var other = '<div class="group-grid">'
+    + when(v.hasCerts, '<div class="wide-card"><div class="group-title">Certificates</div><div class="stat-row">'
+      + statCardSm('Current EGP value', esc(v.certTotalCurrentDisplay), 'c-blue')
+      + statCardSm('At maturity', esc(v.certTotalMaturityDisplay), 'c-purple')
+      + statCardSm('Gain vs principal', esc(v.certGainDisplay) + ' (' + esc(v.certGainPctDisplay) + ')', v.certGainCardClass)
+      + '</div></div>')
+    + '</div>'
+    + '<div class="group-grid">'
+    + when(v.hasGold, '<div class="wide-card"><div class="group-title">Gold</div><div class="stat-row">'
+      + statCardSm('Current value', esc(v.goldTotalCurrentDisplay), 'c-amber')
+      + statCardSm('Grams held', esc(v.goldTotalGramsDisplay), 'c-purple')
+      + statCardSm('Gain vs cost', esc(v.goldGainDisplay), v.goldGainCardClass)
+      + '</div></div>')
+    + '</div>'
+    + '<div class="group-grid">'
+    + when(v.hasStocks, '<div class="wide-card"><div class="group-title">Stocks' + esc(v.stockSymbolSuffix) + '</div><div class="stat-row">'
+      + statCardSm('Sellable now', esc(v.sellableNowDisplay), 'c-teal')
+      + statCardSm('🔒 Vesting later', esc(v.unvestedTotalDisplay), 'c-slate')
+      + statCardSm('Gain if sold now', esc(v.stockNowGainDisplay) + ' (' + esc(v.stockNowGainPctDisplay) + ')', 'c-green', v.stockNowGainClass)
+      + '</div></div>')
+    + '</div>'
+    + '<div class="group-grid">' + ownerGroupCards(v.otherSavingGroups) + '</div>';
 
   var saving = '<div class="sec-saving" data-act="toggleDashSaving">' + chevron(state.dashSavingOpen) + 'Saving</div>'
     + when(state.dashSavingOpen, school + other);

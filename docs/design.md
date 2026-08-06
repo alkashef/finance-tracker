@@ -13,7 +13,7 @@ A static site with no build step, no bundler, and no backend, served as-is:
 | `index.html` | The page shell: `<head>` metadata, the favicon, the four `<link>` stylesheets (cascade order matters — see below), the Google Identity Services `<script>`, an empty `#sidebar` and `#main`, and `<script type="module" src="src/app.js">`. Nothing else — every screen is rendered by JS. |
 | `src/css/` | All styling, split into four cascade-ordered files — see below. |
 | `src/app.js` | The entry module: the render loop (with the by-hand focus/caret/scroll restoration a template-string render loop needs), event delegation, and boot. |
-| `src/js/` | Everything else, one file per concern: `format.js`, `constants.js`, `state.js`, `sheets.js`, `model.js`, `views.js` (a barrel — the screens themselves live under `views/*.js`), `actions.js`. |
+| `src/js/` | Everything else, one file per concern: `format.js`, `constants.js`, `state.js`, `sheets.js`, `marketData.js`, `model.js`, `views.js` (a barrel — the screens themselves live under `views/*.js`), `actions.js`. |
 
 `src/app.js` and `src/js/*.js` are plain ES modules (`<script type="module">`),
 resolved by the browser with no bundler and no transpile — still no build step. They
@@ -23,9 +23,13 @@ never actually held**: OAuth requires an origin registered in Google Cloud Conso
 `file://` reports origin `null`, which cannot be registered, so the app has always
 needed a served origin.
 
-The module graph is a DAG — `format → constants → state → sheets → model → views →
-actions → app` — because a circular import leaves a binding `undefined` at evaluation
-time rather than failing at the call site. Two places need a function that lives
+The module graph is a DAG — `format → constants → state → sheets → marketData → model
+→ views → actions → app` — because a circular import leaves a binding `undefined` at
+evaluation time rather than failing at the call site. `marketData.js` has no imports of
+its own (it takes a key/symbol/currency and returns a plain value or throws), so its
+only real constraint is sitting upstream of `actions.js`, the one file that calls it;
+it's placed next to `sheets.js` because both are "talk to an external HTTP API" modules.
+Two places need a function that lives
 strictly downstream and can't import it without creating a cycle back to themselves;
 both are resolved the same way, a small indirection wired in after import rather than
 at definition:
@@ -192,7 +196,7 @@ Row 1 of every tab is the header row; reads start at row 2. Columns, in order:
 | `Currency Rates` | Currency, Rate to EGP, As Of |
 | `Provident Fund` | Balance, As Of, Tag (single row) |
 | `Stock Meta` | Symbol, Current Price (USD), Cash (USD), As Of (single row) |
-| `Stock Holdings` | Source, Label, Quantity, Cost Basis (USD), Acquired Date |
+| `Stock Holdings` | Source, Label, Quantity, Cost Basis (USD), Acquired Date, Tag |
 | `Stock Vesting` | Vest Date, Grant, Units |
 | `Plan` | Step, Item, Status, Notes, Version |
 | *per account* | Date, Description, Transaction Type, Amount, Balance (generated — do not edit) |
@@ -223,36 +227,90 @@ How the calls are made:
 
 ### Optional local defaults (`config/.env`)
 
-On a dev copy, `config/.env` can supply starting values for those two fields so they
-survive a cleared `localStorage`. `applyLocalDefaults()` (`src/app.js`) runs at the end
-of `boot()`, after the first paint:
+On a dev copy, `config/.env` can supply starting values for the two connection fields
+and, optionally, the GoldAPI.io key (`src/js/marketData.js`), so they survive a cleared
+`localStorage`. `applyLocalDefaults()` (`src/app.js`) runs at the end of `boot()`, after
+the first paint:
 
 - It `fetch`es `config/.env` (resolved from `src/app.js`'s own module URL via
   `import.meta.url`, not the loading page's — `test/smoke.html` would otherwise ask
   for `test/config/.env`) and parses `KEY=value` lines with `parseEnv()`
   (`src/js/format.js` — a pure text transform, so it lives with the other
   no-DOM-no-state helpers and is importable on its own by `test/unit.html`): `#`
-  comments, optional surrounding quotes, whitespace trimmed, reading exactly two keys —
-  `GOOGLE_OAUTH_CLIENT_ID` and `SPREADSHEET_ID`.
-- **It only fills empty fields.** If `restoreConfig()` already found a saved config,
-  the fetch is skipped entirely, so editing Settings in the browser is not undone on
-  reload. The corollary: once a config is saved, a changed `config/.env` has no effect
-  until `localStorage` is cleared.
-- **It prefills, it never connects.** Requesting a token outside a user gesture gets
-  the popup blocked, so the user still presses "Save & Connect". `state.fromLocalEnv`
-  drives a line on the Settings screen disclosing where the values came from.
+  comments, optional surrounding quotes, whitespace trimmed, reading three keys —
+  `GOOGLE_OAUTH_CLIENT_ID`, `SPREADSHEET_ID` and `GOLDAPI-KEY`.
+- **It only fills empty fields, and the two concerns are independent.** The Sheets
+  connection pair is only filled when *both* `clientIdInput` and `spreadsheetIdInput`
+  are still empty (so `restoreConfig()` already having found a saved config skips
+  them); `goldApiKey` is filled separately whenever it is still empty, regardless of
+  whether the Sheets connection was already restored. Either way, editing a value in
+  the browser is not undone on reload — a `config/.env` change only takes effect again
+  once the corresponding `localStorage` value is cleared.
+- **It prefills, it never connects or fetches a price on its own.** Requesting a token
+  outside a user gesture gets the popup blocked, so the user still presses "Save &
+  Connect"; likewise a prefilled GoldAPI.io key still needs "Fetch latest 24k price"
+  pressed. `state.fromLocalEnv` / `state.goldApiKeyFromEnv` each drive a line
+  disclosing where their value came from — on the Settings screen and the Gold Manage
+  screen respectively.
 - Any failure — file absent, server refusing to serve dotfiles, unparseable content —
   is swallowed. A missing `config/.env` is the normal case and the only case the
   hosted site ever sees.
 
 The file is gitignored; only `config/.env.example`, carrying placeholders, is tracked.
-Neither value is a credential: the Client ID is public by design and the Spreadsheet ID
-identifies a document without granting access to it. Reading the Sheet still requires
-an OAuth token for an account it is shared with.
+The Client ID and Spreadsheet ID are not credentials: the Client ID is public by design
+and the Spreadsheet ID identifies a document without granting access to it (reading the
+Sheet still requires an OAuth token for an account it is shared with). `GOLDAPI-KEY`
+*is* a real credential — it is kept out of git the same way, but treat it like any
+other API key.
 
 `scripts/serve.ps1` serves dotfiles (unknown extensions fall back to
 `application/octet-stream`, which `fetch().text()` is happy with). Static servers that
 block dotfiles will simply 404, and the app falls back to the empty Settings form.
+
+## How live market prices are fetched
+
+`src/js/marketData.js` looks up three figures the user would otherwise type by hand:
+the Egypt gold price (Gold's Manage screen), a stock's latest close (Stocks' Manage
+screen) and a currency's rate to EGP (Certificates' Manage screen, where the shared
+Currency Rates panel lives). This app has no backend, so each is a plain `fetch()` from
+the browser straight to the provider — a provider that doesn't answer with CORS headers
+simply will not work here, and that is a fact about the provider, not a bug in this
+file.
+
+| Figure | Provider | Endpoint | Key? |
+| --- | --- | --- | --- |
+| Gold, EGP/gram, 24k | [GoldAPI.io](https://www.goldapi.io/) | `GET /api/XAU/EGP`, `x-access-token` header | Yes, free tier |
+| Stock close (USD) | [Alpha Vantage](https://www.alphavantage.co/) | `GET /query?function=GLOBAL_QUOTE&symbol=…&apikey=…` | Yes, free tier |
+| Currency → EGP | [open.er-api.com](https://www.exchangerate-api.com/docs/free) | `GET /v6/latest/<currency>` | No |
+
+Gold is priced as one market for every lot (see functional-reqs.md), so the fetch
+always asks for 24k specifically — the one purity that fills the shared "current price"
+field, the same one a manual entry would.
+
+Each lookup splits into a pure `parse*` function (response JSON in, `{price, asOf}` /
+`{rate, asOf}` out, throws a plain `Error` on anything unexpected — checked against the
+JSON body's own error field, the same convention `sheets.js`'s `sheetsFetch()` uses,
+rather than `res.ok`/`res.status`) and a thin `fetch*` wrapper around it. The parser is
+what `test/unit.html` exercises directly with literal fixture JSON; the wrapper is what
+`actions.js`'s `fetchGoldPrice` / `fetchStockPrice` / `fetchRate` call.
+
+**Fetching never writes the Sheet.** All three actions only fill the same form fields a
+manual entry would (`goldPriceForm`, `stockPriceForm`, `rateForm`) — the user still
+presses "Update price for all lots" / "Update price" / "Set rate" to persist, same as
+typing the number in by hand. This is deliberate: a flaky or misread response from a
+third-party API gets a chance to be reviewed before it overwrites the Sheet, which is
+the single source of truth.
+
+**The two keys (GoldAPI.io, Alpha Vantage) live in `localStorage`**
+(`financeTracker.marketDataKeys`), written by `fields.goldApiKey` / `fields.stockApiKey`
+in `actions.js` on every keystroke and restored by `restoreConfig()` in `src/app.js`.
+This is a separate `localStorage` key from `financeTracker.config` (the OAuth Client ID
+/ Spreadsheet ID) on purpose: editing a market-data key never touches the Sheets
+connection, and a key typed before a Sheet is ever connected still survives a reload.
+The GoldAPI.io key can additionally be prefilled from `config/.env` (see below) — the
+Alpha Vantage key has no such prefill, since only GoldAPI.io was asked for one. Neither
+key is ever written to the Sheet or committed to the repo — same rule as the OAuth
+Client ID and Spreadsheet ID, just an independent pair of fields.
 
 ## How auth works
 

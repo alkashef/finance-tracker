@@ -39,6 +39,10 @@ import { TAG_SPENDING, ENTITIES } from '../src/js/constants.js';
 import { state } from '../src/js/state.js';
 import { computeLedger, toFieldRequired, buildViewModel, gainClass } from '../src/js/model.js';
 import { tabBar, statCard, dataTable } from '../src/js/views/helpers.js';
+import {
+  parseGoldApiPrice, parseAlphaVantageQuote, parseFxRate,
+  isoDateFromUnixSeconds, isoDateFromDateString,
+} from '../src/js/marketData.js';
 
 window.__errors = [];
 window.onerror = function (m, s, l, c) { window.__errors.push('ERROR: ' + m + ' @' + l + ':' + c); };
@@ -154,6 +158,82 @@ check('parseEnv: single-quoted value is unwrapped', env.SINGLE_QUOTED, 'value wi
 check('parseEnv: line with no "=" is skipped, not a key with an empty value', 'NOEQUALSSIGNLINE' in env, false);
 check('parseEnv: exactly the 3 real keys survive (comments/blank/malformed do not)', Object.keys(env).length, 3);
 
+/* ---------------------------------------------------------- marketData --- */
+
+/* No live network call is exercised here — that's fetch(), a thin wrapper
+   this file doesn't import. What's checked is the pure half: response JSON
+   in, {price, asOf} / {rate, asOf} out, or a specific thrown Error — the same
+   split src/js/marketData.js documents at its top. withFrozenDate is defined
+   further down this file; module-scope function declarations are hoisted, so
+   calling it here is fine. */
+
+section('marketData.js: isoDateFromUnixSeconds / isoDateFromDateString');
+check('isoDateFromUnixSeconds: a real timestamp', isoDateFromUnixSeconds(1735689600), '2025-01-01');
+check('isoDateFromUnixSeconds: zero is falsy, not epoch', isoDateFromUnixSeconds(0), '');
+check('isoDateFromUnixSeconds: undefined', isoDateFromUnixSeconds(undefined), '');
+check('isoDateFromDateString: an ISO string', isoDateFromDateString('2025-08-01T00:02:35Z'), '2025-08-01');
+check('isoDateFromDateString: unparsable text', isoDateFromDateString('not a date'), '');
+check('isoDateFromDateString: empty string', isoDateFromDateString(''), '');
+
+section('marketData.js: parseGoldApiPrice (GoldAPI.io, XAU/EGP)');
+check('parseGoldApiPrice: price + timestamp',
+  JSON.stringify(parseGoldApiPrice({ price_gram_24k: 4123.5, timestamp: 1735689600 })),
+  JSON.stringify({ price: 4123.5, asOf: '2025-01-01' }));
+withFrozenDate('2026-03-10', function () {
+  check('parseGoldApiPrice: no timestamp falls back to today',
+    parseGoldApiPrice({ price_gram_24k: 4000 }).asOf, '2026-03-10');
+});
+check('parseGoldApiPrice: an error field throws it', (function () {
+  try { parseGoldApiPrice({ error: 'invalid access token' }); return '(did not throw)'; }
+  catch (e) { return e.message; }
+})(), 'invalid access token');
+check('parseGoldApiPrice: no 24k price throws', (function () {
+  try { parseGoldApiPrice({}); return '(did not throw)'; }
+  catch (e) { return e.message; }
+})(), 'GoldAPI.io response had no 24k gram price.');
+
+section('marketData.js: parseAlphaVantageQuote (Alpha Vantage GLOBAL_QUOTE)');
+check('parseAlphaVantageQuote: price + latest trading day',
+  JSON.stringify(parseAlphaVantageQuote({ 'Global Quote': { '05. price': '135.28', '07. latest trading day': '2026-02-14' } }, 'TDC')),
+  JSON.stringify({ price: 135.28, asOf: '2026-02-14' }));
+withFrozenDate('2026-03-10', function () {
+  check('parseAlphaVantageQuote: no trading day falls back to today',
+    parseAlphaVantageQuote({ 'Global Quote': { '05. price': '10' } }, 'TDC').asOf, '2026-03-10');
+});
+check('parseAlphaVantageQuote: Error Message throws it', (function () {
+  try { parseAlphaVantageQuote({ 'Error Message': 'Invalid API call' }, 'ZZZZ'); return '(did not throw)'; }
+  catch (e) { return e.message; }
+})(), 'Invalid API call');
+check('parseAlphaVantageQuote: rate-limit Note throws it', (function () {
+  try { parseAlphaVantageQuote({ Note: 'API call frequency exceeded' }, 'TDC'); return '(did not throw)'; }
+  catch (e) { return e.message; }
+})(), 'API call frequency exceeded');
+check('parseAlphaVantageQuote: no price names the symbol', (function () {
+  try { parseAlphaVantageQuote({ 'Global Quote': {} }, 'TDC'); return '(did not throw)'; }
+  catch (e) { return e.message; }
+})(), 'Alpha Vantage returned no price for TDC.');
+
+section('marketData.js: parseFxRate (open.er-api.com)');
+check('parseFxRate: success + EGP rate + time_last_update_utc',
+  JSON.stringify(parseFxRate({ result: 'success', rates: { EGP: 47.99 }, time_last_update_utc: '2025-08-01T00:02:35Z' }, 'USD')),
+  JSON.stringify({ rate: 47.99, asOf: '2025-08-01' }));
+withFrozenDate('2026-03-10', function () {
+  check('parseFxRate: no time_last_update_utc falls back to today',
+    parseFxRate({ result: 'success', rates: { EGP: 47.99 } }, 'USD').asOf, '2026-03-10');
+});
+check('parseFxRate: non-success result names the currency', (function () {
+  try { parseFxRate({ result: 'error' }, 'ZZZ'); return '(did not throw)'; }
+  catch (e) { return e.message; }
+})(), 'Exchange-rate lookup failed for ZZZ.');
+check('parseFxRate: non-success result prefers error-type', (function () {
+  try { parseFxRate({ result: 'error', 'error-type': 'unsupported-code' }, 'ZZZ'); return '(did not throw)'; }
+  catch (e) { return e.message; }
+})(), 'unsupported-code');
+check('parseFxRate: success but no EGP rate', (function () {
+  try { parseFxRate({ result: 'success', rates: {} }, 'USD'); return '(did not throw)'; }
+  catch (e) { return e.message; }
+})(), 'No EGP rate in the response for USD.');
+
 /* ------------------------------------------------------- buildViewModel --- */
 
 /* certificatesModel measures days-to-maturity against the real wall clock
@@ -198,7 +278,7 @@ state.certItems = [
 state.rates = [{ Currency: 'USD', 'Rate to EGP': 50, 'As Of': '2026-01-01' }];
 state.providentFund = { Balance: 20000, 'As Of': '2026-01-01', Tag: 'Saving > Other' };
 state.stockMeta = { Symbol: 'ACME', 'Current Price (USD)': 100, 'Cash (USD)': 50, 'As Of': '2026-01-01' };
-state.stockHoldings = [{ Source: 'Vested RSU', Label: 'Lot1', Quantity: 10, 'Cost Basis (USD)': 800, 'Acquired Date': '2025-01-01' }];
+state.stockHoldings = [{ Source: 'Vested RSU', Label: 'Lot1', Quantity: 10, 'Cost Basis (USD)': 800, 'Acquired Date': '2025-01-01', Tag: 'Saving > Other' }];
 state.stockVesting = [{ 'Vest Date': '2027-03-01', Grant: 'G1', Units: 5 }];
 state.planItems = [{ Step: '1', Item: 'Consolidate accounts', Status: 'Done', Notes: '', Version: 'v1' }];
 state.activeSheet = 'dashboard';
@@ -280,7 +360,7 @@ section('no import cycles across src/js/*.js');
    false pass or fail. */
 var MODULE_FILES = [
   'app.js',
-  'js/format.js', 'js/constants.js', 'js/state.js', 'js/sheets.js', 'js/model.js',
+  'js/format.js', 'js/constants.js', 'js/state.js', 'js/sheets.js', 'js/marketData.js', 'js/model.js',
   'js/views.js', 'js/actions.js',
   'js/views/helpers.js', 'js/views/sidebar.js', 'js/views/settings.js', 'js/views/dashboard.js',
   'js/views/lists.js', 'js/views/plan.js', 'js/views/transactions.js', 'js/views/gold.js',

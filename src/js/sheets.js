@@ -180,7 +180,10 @@ export function getAll() {
       providentFund: pfRows.length ? { Balance: pfRows[0][0], 'As Of': sheetsFmtDate(pfRows[0][1]), Tag: pfRows[0][2] || '' } : null,
       stockMeta: smRows.length ? { Symbol: smRows[0][0], 'Current Price (USD)': smRows[0][1], 'Cash (USD)': smRows[0][2], 'As Of': sheetsFmtDate(smRows[0][3]) } : null,
       stockHoldings: get(10).filter(function (r) { return r[0]; }).map(function (r) {
-        return { Source: r[0], Label: r[1], Quantity: r[2], 'Cost Basis (USD)': r[3], 'Acquired Date': sheetsFmtDate(r[4]) };
+        return {
+          Source: r[0], Label: r[1], Quantity: r[2], 'Cost Basis (USD)': r[3],
+          'Acquired Date': sheetsFmtDate(r[4]), Tag: r[5] || '',
+        };
       }),
       stockVesting: get(11).filter(function (r) { return r[0]; }).map(function (r) {
         return { 'Vest Date': sheetsFmtDate(r[0]), Grant: r[1], Units: r[2] };

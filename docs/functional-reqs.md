@@ -54,6 +54,10 @@ Tags are editable on the Tags screen; the three above are seeded on first run.
   every lot at once — gold is priced as one market, not per-lot.
 - When a new lot is added without a current price or as-of date, both are inherited
   from the lot with the latest as-of date (falling back to the purchase date).
+- "Fetch latest 24k price" looks up today's international 24k gold spot price in
+  EGP/gram (via GoldAPI.io — a free API key, entered once, is required) and fills the
+  Current Price/As Of fields for review. It does not save by itself — "Update price for
+  all lots" still applies it, same as typing the number in by hand.
 
 ## Certificates
 
@@ -74,6 +78,9 @@ Tags are editable on the Tags screen; the three above are seeded on first run.
 - Setting a new rate immediately recalculates every EGP figure that depends on it —
   old rates are overwritten, not kept as history.
 - A currency with no rate set converts at 0.
+- "Fetch latest" looks up the currency already typed into the Currency field against
+  EGP (via open.er-api.com — no key needed) and fills Rate/As Of for review. It does
+  not save by itself — "Set rate" still applies it.
 
 ## Stocks (RSU & ESPP)
 
@@ -87,6 +94,9 @@ Tags are editable on the Tags screen; the three above are seeded on first run.
 - Updating the stock price recomputes every holding value, vesting value, and the
   "what if it trades at $X" scenario slider at once. The slider spans $10–$80 and
   resets to the current price whenever the price is updated.
+- "Fetch latest close" looks up the latest daily close for the Symbol field (via Alpha
+  Vantage — a free API key, entered once, is required) and fills Current Price/As Of
+  for review. It does not save by itself — "Update price" still applies it.
 
 ## Provident Fund
 

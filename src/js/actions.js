@@ -11,6 +11,7 @@ import {
 import { state, set, setForm, toggle, render } from './state.js';
 import { writeSheet, ensureSheets, deleteSheet, renameSheet, persist } from './sheets.js';
 import { recomputeAndWriteAllLedgers, computeLedger, loadAll, toFieldRequired } from './model.js';
+import { fetchGoldPriceEgp24k, fetchStockQuote, fetchFxRateToEgp } from './marketData.js';
 
 /* ENTITIES.transactions.after needs recomputeAndWriteAllLedgers, which lives in
    model.js — constants.js can't import that without turning the module graph
@@ -40,6 +41,19 @@ function writeAccountsSheet(accounts, owners, tags) {
 
 function goto(sheet) {
   set({ activeSheet: sheet, search: '' });
+}
+
+/* GoldAPI.io / Alpha Vantage keys, typed into the Gold/Stocks Manage screens.
+   Persisted the moment they change, independent of the Sheets "Save & Connect"
+   flow (financeTracker.config) — editing one shouldn't require reconnecting,
+   and it should survive even before a Sheet is connected at all. Never sent
+   anywhere but the provider it names; never written to the Sheet. */
+function saveMarketDataKeys() {
+  try {
+    localStorage.setItem('financeTracker.marketDataKeys', JSON.stringify({
+      goldApiKey: state.goldApiKey, stockApiKey: state.stockApiKey,
+    }));
+  } catch (e) { /* localStorage unavailable — the key just won't survive a reload */ }
 }
 
 function removeAt(list, index) {
@@ -147,8 +161,6 @@ export var actions = {
   toggleRecentTx: function () { toggle('recentTxOpen'); },
   toggleDashCurrency: function () { toggle('dashCurrencyOpen'); },
   toggleDashSpending: function () { toggle('dashSpendingOpen'); },
-  toggleDashSchool: function () { toggle('dashSchoolOpen'); },
-  toggleDashOther: function () { toggle('dashOtherOpen'); },
   toggleDashMaturity: function () { toggle('dashMaturityOpen'); },
   toggleDashSaving: function () { toggle('dashSavingOpen'); },
   goDashboard: function () { goto('dashboard'); },
@@ -321,6 +333,21 @@ export var actions = {
       'Current Price per Gram (EGP)': currentPrice, 'As Of': asOf, Tag: f.tag || TAG_SAVING_OTHER,
     });
   },
+  /* Fills goldPriceForm from GoldAPI.io's 24k EGP/gram spot price — it does not
+     write the Sheet itself. Gold is priced as one market for every lot
+     (functional-reqs.md), so 24k is the one purity this fills; a lot bought at
+     a different karat still shares that single current price, same as typing
+     it in by hand. */
+  fetchGoldPrice: function () {
+    var key = state.goldApiKey.trim();
+    if (!key) { set({ error: 'Paste a GoldAPI.io key first.' }); return; }
+    set({ loading: true, error: '' });
+    fetchGoldPriceEgp24k(key).then(function (r) {
+      set({ loading: false, goldPriceForm: { currentPrice: String(r.price), asOf: r.asOf } });
+    }).catch(function (e) {
+      set({ loading: false, error: 'Gold price fetch error: ' + e.message });
+    });
+  },
   applyGoldPriceUpdate: function () {
     var price = parseFloat(state.goldPriceForm.currentPrice);
     var asOf = state.goldPriceForm.asOf;
@@ -352,6 +379,20 @@ export var actions = {
       'Maturity Date': f.maturityDate, 'Interest Rate': ratePct / 100, Tag: f.tag || TAG_SAVING_OTHER,
     });
   },
+  /* Fills rateForm's Rate/As Of from open.er-api.com for whatever currency is
+     already typed into the Currency field — no key needed. Doesn't write the
+     Sheet; "Set rate" still does that, same review-before-apply shape as the
+     gold and stock fetches. */
+  fetchRate: function () {
+    var currency = state.rateForm.currency.trim().toUpperCase();
+    if (!currency) { set({ error: 'Enter a currency code first.' }); return; }
+    set({ loading: true, error: '' });
+    fetchFxRateToEgp(currency).then(function (r) {
+      set({ loading: false, rateForm: { currency: currency, rate: String(r.rate), asOf: r.asOf } });
+    }).catch(function (e) {
+      set({ loading: false, error: 'Exchange rate fetch error: ' + e.message });
+    });
+  },
   applyRateUpdate: function () {
     var currency = state.rateForm.currency.trim().toUpperCase();
     var rate = parseFloat(state.rateForm.rate);
@@ -378,6 +419,25 @@ export var actions = {
 
   /* --- stocks ---
      Holdings and vesting are wholly descriptor-driven; see the loop below. */
+  /* Fills stockPriceForm's Current Price/As Of from Alpha Vantage's latest
+     daily close for whatever symbol is typed (falling back to the Sheet's
+     saved Symbol) — it does not write the Sheet itself. */
+  fetchStockPrice: function () {
+    var key = state.stockApiKey.trim();
+    var prevSymbol = (state.stockMeta && state.stockMeta.Symbol) || '';
+    var symbol = (state.stockPriceForm.symbol.trim() || prevSymbol).toUpperCase();
+    if (!key) { set({ error: 'Paste an Alpha Vantage key first.' }); return; }
+    if (!symbol) { set({ error: 'Enter a stock symbol first.' }); return; }
+    set({ loading: true, error: '' });
+    fetchStockQuote(symbol, key).then(function (r) {
+      set({
+        loading: false,
+        stockPriceForm: { symbol: symbol, currentPrice: String(r.price), cash: state.stockPriceForm.cash, asOf: r.asOf },
+      });
+    }).catch(function (e) {
+      set({ loading: false, error: 'Stock price fetch error: ' + e.message });
+    });
+  },
   applyStockPriceUpdate: function () {
     var f = state.stockPriceForm;
     /* Blank fields keep whatever the Sheet already holds; on a fresh Sheet there
@@ -446,6 +506,12 @@ export var fields = {
   certCurrency: function (v) { setForm('certForm', 'currency', v.toUpperCase()); },
   rateCurrency: function (v) { setForm('rateForm', 'currency', v.toUpperCase()); },
   stockSymbol: function (v) { setForm('stockPriceForm', 'symbol', v.toUpperCase()); },
+
+  /* Not form fields — top-level state, persisted to localStorage on every
+     keystroke rather than on a save button, since there's nothing to "cancel"
+     back to. See saveMarketDataKeys() above for where they land. */
+  goldApiKey: function (v) { set({ goldApiKey: v }); saveMarketDataKeys(); },
+  stockApiKey: function (v) { set({ stockApiKey: v }); saveMarketDataKeys(); },
 };
 
 /* The forms with no entity behind them: accounts (tab lifecycle), the two

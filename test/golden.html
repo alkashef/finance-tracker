@@ -232,12 +232,13 @@ var steps = [
     section('CSS tokens & split (scenario: ' + SCENARIO + ')');
     var combined = cssTexts.join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
 
-    /* Rule-count conservation: 247 rules existed pre-Milestone-7 (docs/plan.md); the
-       only rule this milestone adds is the new :root token block, so the four files
-       together must sum to exactly one more than that. A whole section dropped
-       between files would show up here even though no single file looks wrong. */
+    /* Rule-count conservation: 247 rules existed pre-Milestone-7 (docs/plan.md), plus
+       the :root token block Milestone 7 added (246), plus the two new grid-column
+       rules (.gold-fetch-form, .stock-fetch-form) the live-price-fetch feature added.
+       A whole section dropped between files would show up here even though no single
+       file looks wrong. */
     var ruleCount = (combined.match(/\{/g) || []).length;
-    check('rule count across base+components+screens+utilities (247 + 1 :root)', ruleCount, 248);
+    check('rule count across base+components+screens+utilities (245 + 1 :root + 2 fetch-form)', ruleCount, 248);
 
     /* Token sweep: base.css is the one place these literals are allowed to appear —
        that's the token definition itself. Anywhere else is a literal that should have

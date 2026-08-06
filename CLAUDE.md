@@ -28,14 +28,15 @@ and anything else that writes to git history. Work on `main` unless told otherwi
   load last. See [design.md](docs/design.md) for what's in each file.
 - `src/app.js` — the entry module: render loop (with the by-hand focus/caret/scroll
   restoration a template-string render loop needs), event delegation, boot.
-- `src/js/format.js`, `constants.js`, `state.js`, `sheets.js`, `model.js`, `views.js`
-  (a barrel over `views/*.js`, one file per screen), `actions.js` — everything else:
-  formatting helpers, entity descriptors, the state object, the Sheets/OAuth layer,
-  the view model, the screen views, the `actions`/`fields` maps. Plain ES modules,
-  imported by `src/app.js`; the module graph is a DAG
-  (`format → constants → state → sheets → model → views → actions → app`) — see
-  [design.md](docs/design.md) for the two places that needed a small indirection to
-  keep it that way.
+- `src/js/format.js`, `constants.js`, `state.js`, `sheets.js`, `marketData.js`,
+  `model.js`, `views.js` (a barrel over `views/*.js`, one file per screen), `actions.js`
+  — everything else: formatting helpers, entity descriptors, the state object, the
+  Sheets/OAuth layer, the live gold/stock/currency price lookups, the view model, the
+  screen views, the `actions`/`fields` maps. Plain ES modules, imported by
+  `src/app.js`; the module graph is a DAG
+  (`format → constants → state → sheets → marketData → model → views → actions → app`)
+  — see [design.md](docs/design.md) for the two places that needed a small indirection
+  to keep it that way, and for how `marketData.js` fetches live prices with no backend.
 - `scripts/serve.ps1` — no-dependency local static server (`npx serve .` also works).
 - `scripts/test.ps1` — the automated runner: serves the repo on a free port, drives
   every `test/*.html` harness through headless Edge for every scenario, prints one
@@ -95,18 +96,28 @@ export step and no "do not edit" file.
   sample holdings, default balances, a fallback spreadsheet ID, or anything else that
   puts the user's figures into source. Missing tabs are created empty and stay empty.
   This is a hard rule — the repo is on GitHub.
-  The **one** carve-out: `config/.env` is an untracked, local-only file that prefills
-  the two connection fields (see `docs/design.md`). It works precisely because it is
-  gitignored — only `config/.env.example` with placeholders is committed. Don't extend
-  it to hold anything else, don't add a tracked fallback if it's missing, and never
-  commit a real one.
+  The carve-out: `config/.env` is an untracked, local-only file that prefills the two
+  connection fields and (optionally) the GoldAPI.io key, `GOLDAPI-KEY` (see
+  `docs/design.md`). It works precisely because it is gitignored — only
+  `config/.env.example` with placeholders is committed. Don't add a tracked fallback if
+  it's missing, and never commit a real one. Extending it further should stay rare and
+  deliberate — each key added is one more thing `.env.example`, `parseEnv()`'s callers
+  and this doc all have to stay in sync on.
 - **No build tooling.** No npm install to run it, no bundler, no transpile.
   `src/app.js` and `src/js/*.js` are plain ES modules — the browser resolves the
   imports itself, so this is still no build step. Import specifiers must be relative
   and carry `.js` (there's no resolver), and the module graph must stay a DAG
-  (`format → constants → state → sheets → model → views → actions → app`, see
-  `docs/design.md`) — a circular import leaves a binding `undefined` at evaluation
+  (`format → constants → state → sheets → marketData → model → views → actions → app`,
+  see `docs/design.md`) — a circular import leaves a binding `undefined` at evaluation
   time, not at the call site.
+- **No backend, so live prices are fetched straight from the browser.** `marketData.js`
+  calls GoldAPI.io, Alpha Vantage and open.er-api.com directly with `fetch()` — see
+  `docs/design.md`. The two API keys this needs live in `localStorage`
+  (`financeTracker.marketDataKeys`), same as the OAuth Client ID / Spreadsheet ID:
+  never commit one, never add a tracked fallback. The GoldAPI.io key can additionally
+  be prefilled from `config/.env` (`GOLDAPI-KEY`, see above); the Alpha Vantage key has
+  no such prefill. A fetch only fills a form for review — it never writes the Sheet by
+  itself.
 - **No framework and no CDN dependencies** beyond the Google Identity Services script
   needed for OAuth. Don't reach for React, a template library, or a diffing layer;
   the render model in `docs/design.md` is deliberate.

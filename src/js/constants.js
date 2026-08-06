@@ -11,7 +11,7 @@ export var GOLD_HEADERS = ['Quantity', 'Type', 'Brand', 'Weight (gm)', 'Where', 
 export var CERT_HEADERS = ['Certificate Number', 'Product Name', 'Open Date', 'Amount', 'Currency', 'Interest Frequency', 'Maturity Date', 'Interest Rate', 'Tag'];
 export var RATE_HEADERS = ['Currency', 'Rate to EGP', 'As Of'];
 export var STOCK_META_HEADERS = ['Symbol', 'Current Price (USD)', 'Cash (USD)', 'As Of'];
-export var STOCK_HOLDINGS_HEADERS = ['Source', 'Label', 'Quantity', 'Cost Basis (USD)', 'Acquired Date'];
+export var STOCK_HOLDINGS_HEADERS = ['Source', 'Label', 'Quantity', 'Cost Basis (USD)', 'Acquired Date', 'Tag'];
 export var STOCK_VESTING_HEADERS = ['Vest Date', 'Grant', 'Units'];
 
 /* The three tags the dashboard groups by. Not seed data: the grouping logic and
@@ -206,18 +206,22 @@ export var ENTITIES = {
     headers: STOCK_HOLDINGS_HEADERS,
     list: 'stockHoldings', form: 'holdingForm',
     emptyForm: function () {
-      return { mode: 'add', index: -1, source: 'Vested RSU', label: '', quantity: '', cost: '', acquired: '' };
+      return {
+        mode: 'add', index: -1, source: 'Vested RSU', label: '', quantity: '', cost: '', acquired: '',
+        tag: TAG_SAVING_OTHER,
+      };
     },
     toForm: function (h) {
       return {
         source: h.Source || 'Vested RSU', label: h.Label || '', quantity: String(h.Quantity),
         cost: String(h['Cost Basis (USD)']), acquired: h['Acquired Date'] || '',
+        tag: h.Tag || TAG_SAVING_OTHER,
       };
     },
     toRecord: function (f) {
       return {
         Source: f.source, Label: f.label.trim(), Quantity: parseFloat(f.quantity),
-        'Cost Basis (USD)': parseFloat(f.cost), 'Acquired Date': f.acquired,
+        'Cost Basis (USD)': parseFloat(f.cost), 'Acquired Date': f.acquired, Tag: f.tag,
       };
     },
     validate: function (f) {
@@ -225,7 +229,7 @@ export var ENTITIES = {
     },
     fields: {
       holdingSource: 'source', holdingLabel: 'label', holdingQuantity: 'quantity',
-      holdingCost: 'cost', holdingAcquired: 'acquired',
+      holdingCost: 'cost', holdingAcquired: 'acquired', holdingTag: 'tag',
     },
   },
 

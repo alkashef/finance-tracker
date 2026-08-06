@@ -1,6 +1,7 @@
 import { tabBar, when, field, selectInput, options, textInput, numInput, dateInput, submitPair, dataTable } from './helpers.js';
 import { esc } from '../format.js';
 import { state } from '../state.js';
+import { TAG_SAVING_OTHER } from '../constants.js';
 
 export function viewStocks(v) {
   var manage = state.stockTab === 'manage';
@@ -62,6 +63,13 @@ export function viewStocks(v) {
   var manageBody = when(manage,
     '<div class="panel-solid">'
     + '<div class="panel-title">Stock price &amp; cash</div>'
+    + '<div class="stock-fetch-form">'
+    + field('Alpha Vantage key', textInput('stockApiKey', state.stockApiKey, ' type="password" placeholder="paste your free key"'))
+    + '<button class="btn-ghost btn-ghost--tight" data-act="fetchStockPrice">Fetch latest close</button>'
+    + '</div>'
+    + '<p class="panel-note mb-14">Looks up the latest daily close for the Symbol below via '
+    + '<a href="https://www.alphavantage.co/" target="_blank" rel="noopener">Alpha Vantage</a> (free key) and fills '
+    + 'Current Price and As Of — review, then click Update.</p>'
     + '<div class="stock-price-form">'
     + field('Symbol', textInput('stockSymbol', pf.symbol, ' placeholder="' + esc(v.stockSymbol) + '"'))
     + field('Current Price (USD)', numInput('stockPrice', pf.currentPrice, ' placeholder="' + esc(v.stockPriceDisplay) + '"'))
@@ -80,6 +88,7 @@ export function viewStocks(v) {
     + field('Quantity', numInput('holdingQuantity', hf.quantity))
     + field('Cost Basis (USD)', numInput('holdingCost', hf.cost))
     + field('Acquired', dateInput('holdingAcquired', hf.acquired))
+    + field('Tag', selectInput('holdingTag', options(v.tagOptions, hf.tag || TAG_SAVING_OTHER)))
     + submitPair('submitHoldingForm', 'cancelHoldingForm', hf.mode === 'edit' ? 'Save changes' : 'Add lot', hf.mode === 'edit', 'btn-row btn-row--sm')
     + '</div>'
     + dataTable({
@@ -87,7 +96,7 @@ export function viewStocks(v) {
       columns: [
         { label: 'Source', cls: 'wide' }, { label: 'Label', cls: 'wide' }, { label: 'Quantity', cls: 'wide right' },
         { label: 'Cost basis', cls: 'wide right' }, { label: 'Value now', cls: 'wide right' },
-        { label: 'Gain', cls: 'wide right' }, { label: '', cls: 'wide right' },
+        { label: 'Gain', cls: 'wide right' }, { label: 'Tag', cls: 'wide' }, { label: '', cls: 'wide right' },
       ],
       rows: v.holdingRows,
       cells: function (r) {
@@ -96,7 +105,8 @@ export function viewStocks(v) {
           + '<td class="td-x num">' + esc(r.quantityDisplay) + '</td>'
           + '<td class="td-x num">' + esc(r.costDisplay) + '</td>'
           + '<td class="td-x num">' + esc(r.valueDisplay) + '</td>'
-          + '<td class="td-x num bold ' + r.gainClass + '">' + esc(r.gainDisplay) + '</td>';
+          + '<td class="td-x num bold ' + r.gainClass + '">' + esc(r.gainDisplay) + '</td>'
+          + '<td class="td-x">' + esc(r.tagDisplay) + '</td>';
       },
       rowActions: { editAct: 'editHolding', deleteAct: 'deleteHolding', tdClass: 'td-x' },
     })

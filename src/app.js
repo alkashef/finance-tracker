@@ -115,20 +115,34 @@ function restoreConfig() {
       state.showSettings = false;
     }
   } catch (e) { /* no usable saved config */ }
+  /* GoldAPI.io / Alpha Vantage keys (src/js/marketData.js) — a separate
+     localStorage key from financeTracker.config so editing one never touches
+     the Sheets connection, and so a key typed before a Sheet is ever
+     connected still survives a reload. */
+  try {
+    var keys = JSON.parse(localStorage.getItem('financeTracker.marketDataKeys') || '{}');
+    state.goldApiKey = keys.goldApiKey || '';
+    state.stockApiKey = keys.stockApiKey || '';
+  } catch (e) { /* no usable saved keys */ }
 }
 
 /* Optional local convenience: a gitignored `config/.env` can prefill the two
-   connection fields so a dev copy doesn't need them retyped after every clear of
-   site data. It is deliberately absent from the hosted site, where both values are
-   typed into Settings by hand.
+   connection fields, and/or a GoldAPI.io key, so a dev copy doesn't need them
+   retyped after every clear of site data. It is deliberately absent from the
+   hosted site, where every value is typed in by hand instead (Settings for the
+   first two, the Gold Manage screen for the key).
 
    This does not breach the "no data in the app" rule: the file is untracked, holds
    no financial figures, and the repo ships only `config/.env.example` with
-   placeholders. Never read anything else from it, and never commit a real one.
-   parseEnv() itself lives in js/format.js — see the comment there. */
+   placeholders. Never commit a real one. parseEnv() itself lives in js/format.js —
+   see the comment there. */
 function applyLocalDefaults() {
-  /* A saved config always wins, so editing Settings locally survives a reload. */
-  if (state.clientIdInput || state.spreadsheetIdInput) return;
+  /* A saved value always wins, so editing Settings/the Gold key locally survives a
+     reload — but the two concerns are independent: a Sheets connection saved in an
+     earlier session shouldn't stop a GoldAPI key added to .env later from being
+     picked up, and vice versa, so the fetch is only skipped once there is nothing
+     left it could fill. */
+  if (state.clientIdInput && state.spreadsheetIdInput && state.goldApiKey) return;
   /* Resolved from this module's own URL, not the document's — `fetch('config/.env')`
      resolves relative to whichever page loaded app.js, which is wrong from
      test/smoke.html (it would ask for test/config/.env). new URL(..., import.meta.url)
@@ -138,12 +152,23 @@ function applyLocalDefaults() {
     .then(function (text) {
       if (!text) return;
       var env = parseEnv(text);
-      var clientId = env.GOOGLE_OAUTH_CLIENT_ID || '';
-      var spreadsheetId = env.SPREADSHEET_ID || '';
-      if (!clientId && !spreadsheetId) return;
+      var patch = {};
       /* Prefill only — never auto-connect. Requesting a token without a user
          gesture gets the OAuth popup blocked. */
-      set({ clientIdInput: clientId, spreadsheetIdInput: spreadsheetId, fromLocalEnv: true });
+      if (!state.clientIdInput && !state.spreadsheetIdInput) {
+        var clientId = env.GOOGLE_OAUTH_CLIENT_ID || '';
+        var spreadsheetId = env.SPREADSHEET_ID || '';
+        if (clientId || spreadsheetId) {
+          patch.clientIdInput = clientId;
+          patch.spreadsheetIdInput = spreadsheetId;
+          patch.fromLocalEnv = true;
+        }
+      }
+      if (!state.goldApiKey && env['GOLDAPI-KEY']) {
+        patch.goldApiKey = env['GOLDAPI-KEY'];
+        patch.goldApiKeyFromEnv = true;
+      }
+      if (Object.keys(patch).length) set(patch);
     })
     .catch(function () { /* no local file, or the server won't serve dotfiles — fine */ });
 }

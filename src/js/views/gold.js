@@ -31,6 +31,15 @@ export function viewGold(v) {
     + submitPair('submitGoldForm', 'cancelGoldForm', f.mode === 'edit' ? 'Save changes' : 'Add lot', f.mode === 'edit')
     + '</div>'
     + '</div>'
+    + '<div class="form-grid gold-fetch-form">'
+    + field('GoldAPI.io key', textInput('goldApiKey', state.goldApiKey, ' type="password" placeholder="paste your free key"'))
+    + '<button class="btn-ghost btn-ghost--tight" data-act="fetchGoldPrice">Fetch latest 24k price</button>'
+    + '</div>'
+    + '<p class="panel-note mb-14">Looks up today\'s international 24k gold spot price in EGP/gram via '
+    + '<a href="https://www.goldapi.io/" target="_blank" rel="noopener">GoldAPI.io</a> (free key) and fills the '
+    + 'fields below — review, then click Update.'
+    + when(state.goldApiKeyFromEnv, ' Prefilled from your local <code>config/.env</code>.')
+    + '</p>'
     + '<div class="form-grid gold-price-form">'
     + field('Current Price/gm (EGP) — updates all lots', numInput('goldPriceCurrent', state.goldPriceForm.currentPrice))
     + field('As Of', dateInput('goldPriceAsOf', state.goldPriceForm.asOf))

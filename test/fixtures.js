@@ -20,7 +20,7 @@ var POPULATED = [
   [['EGP', 1, '2024-04-08'], ['USD', 50, '2024-04-08'], ['EUR', 60, '2024-04-08']],
   [[250000, '2026-01-01', 'Saving > Other']],
   [['ACME', 20, 100, '2026-08-01']],
-  [['Vested RSU', 'RSU lot', 100, 1500, '2026-03-03'], ['ESPP', 'ESPP lot', 50, 500, '2025-06-01']],
+  [['Vested RSU', 'RSU lot', 100, 1500, '2026-03-03', 'Saving > Other'], ['ESPP', 'ESPP lot', 50, 500, '2025-06-01', 'Saving > Other']],
   [['2027-01-15', 'G-1', 200], ['2028-01-15', 'G-2', 300]]
 ];
 var EMPTY = POPULATED.map(function () { return []; });
