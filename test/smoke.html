@@ -14,6 +14,8 @@
   .pass { color: #047857; }
   .fail { color: #dc2626; font-weight: 700; }
 </style>
+<script src="fixtures.js"></script>
+<script src="harness.js"></script>
 <script>
 /* Smoke test for app.js. Loads the real app against a stubbed Google Sheets API and
    a stubbed OAuth client, drives every screen, and checks the behaviours the render
@@ -24,45 +26,12 @@
          add  ?scenario=empty  to check the empty-Sheet path,
          add  ?env=1           to check the config/.env prefill path.
 
-   It never touches the network and never talks to Google. */
+   It never touches the network and never talks to Google. Fixture data lives in
+   fixtures.js; the fetch/OAuth stubs live in harness.js — both shared with
+   golden.html so the two harnesses drive the app against the same fake Sheet. */
 
 var SCENARIO = new URLSearchParams(location.search).get('scenario') || 'populated';
-
-window.__errors = [];
-window.onerror = function (m, s, l, c) { window.__errors.push('ERROR: ' + m + ' @' + l + ':' + c); };
-window.addEventListener('unhandledrejection', function (e) {
-  window.__errors.push('REJECT: ' + ((e.reason && e.reason.message) || e.reason));
-});
-window.confirm = function () { return true; };
-localStorage.removeItem('financeTracker.config');
-
-/* Fixture data, in the order app.js requests the ranges. Entirely invented — round
-   numbers so the expected values below are obvious by hand. Never put real figures
-   here; this file is in the repo. */
-var POPULATED = [
-  [['Bank A', 'Alex', 'Spending'], ['Savings B', 'Sam', 'Saving > Other'], ['School Fund', 'Alex', 'Saving > School']],
-  [['Salary'], ['Groceries'], ['Starting Balance']],
-  [['Spending'], ['Saving > School'], ['Saving > Other']],
-  [['2026-01-05', 1000, 'Opening balance', 'Starting Balance', 'Bank A', ''],
-   ['2026-02-10', 250.5, 'Groceries & stuff <b>', 'Groceries', 'Bank A', 'Savings B'],
-   ['2026-03-01', 500, 'Transfer', 'Salary', 'Savings B', 'School Fund']],
-  [['1', 'Item one', 'Done', 'a note', 'v1'], ['2', 'Item two', 'Not started', '', ''], ['3', 'Item three', 'In progress', '', '']],
-  [[2, 'Gold 24', 'Brand X', 5, 'Vault', 3000, '2024-03-21', 4000, '2026-07-29', 'Saving > Other'],
-   [1, 'Gold 21', 'Brand Y', 10, 'Home', 5000, '2025-01-01', 4000, '2026-07-29', 'Saving > Other']],
-  [['C-001', 'Example cert EGP', '2024-02-13', 100000, 'EGP', '1 Year', '2026-09-01', 0.2, 'Saving > Other'],
-   ['C-002', 'Example cert USD', '2023-11-06', 1000, 'USD', '3 Month', '2026-11-07', 0.1, 'Saving > Other']],
-  [['EGP', 1, '2024-04-08'], ['USD', 50, '2024-04-08'], ['EUR', 60, '2024-04-08']],
-  [[250000, '2026-01-01', 'Saving > Other']],
-  [['ACME', 20, 100, '2026-08-01']],
-  [['Vested RSU', 'RSU lot', 100, 1500, '2026-03-03'], ['ESPP', 'ESPP lot', 50, 500, '2025-06-01']],
-  [['2027-01-15', 'G-1', 200], ['2028-01-15', 'G-2', 300]]
-];
-var EMPTY = POPULATED.map(function () { return []; });
 var DATA = SCENARIO === 'empty' ? EMPTY : POPULATED;
-
-window.google = { accounts: { oauth2: { initTokenClient: function (cfg) {
-  return { requestAccessToken: function () { cfg.callback({ access_token: 'stub', expires_in: 3600 }); } };
-} } } };
 
 /* config/.env is optional local convenience. `?env=1` exercises the present case;
    without it the stub 404s, which is what the hosted site and CI always see.
@@ -71,28 +40,7 @@ var LOCAL_ENV = new URLSearchParams(location.search).get('env') === '1'
   ? '# local defaults\nGOOGLE_OAUTH_CLIENT_ID = env123.apps.googleusercontent.com\nSPREADSHEET_ID="env-sheet-id"\nUNUSED_KEY=ignored\n'
   : null;
 
-/* Every write the app attempts is recorded so we can assert it never invents data. */
-window.__writes = [];
-window.fetch = function (url) {
-  url = String(url);
-  var body = {};
-  if (url.indexOf('config/.env') !== -1) {
-    return Promise.resolve(LOCAL_ENV === null
-      ? { ok: false, status: 404, text: function () { return Promise.resolve(''); } }
-      : { ok: true, status: 200, text: function () { return Promise.resolve(LOCAL_ENV); } });
-  }
-  if (url.indexOf('values:batchGet') !== -1) {
-    body = { valueRanges: DATA.map(function (v) { return { values: v }; }) };
-  } else if (url.indexOf('fields=sheets.properties') !== -1) {
-    body = { sheets: [{ properties: { sheetId: 0, title: 'Accounts' } }] };
-  } else if (url.indexOf(':batchUpdate') !== -1) {
-    body = { replies: [{ addSheet: { properties: { sheetId: Math.floor(Math.random() * 1e6) } } }] };
-  } else if (url.indexOf('valueInputOption=RAW') !== -1) {
-    var m = /\/values\/([^!]+)!/.exec(url);
-    window.__writes.push(m ? decodeURIComponent(m[1]) : url);
-  }
-  return Promise.resolve({ json: function () { return Promise.resolve(body); } });
-};
+installHarness(DATA, { localEnv: LOCAL_ENV });
 </script>
 </head>
 <body>
@@ -179,8 +127,9 @@ var steps = [
 
   function () {
     section('no invented data');
-    var unexpected = window.__writes.filter(function (s) { return s === 'Bank A' || s === 'Savings B' || s === 'School Fund'; });
-    note('sheets written on load: ' + (window.__writes.join(', ') || '(none)'));
+    var writtenSheets = window.__writes.map(function (w) { return w.sheet; });
+    var unexpected = writtenSheets.filter(function (s) { return s === 'Bank A' || s === 'Savings B' || s === 'School Fund'; });
+    note('sheets written on load: ' + (writtenSheets.join(', ') || '(none)'));
     check('only account ledgers written', window.__writes.length, unexpected.length);
     if (SCENARIO === 'empty') check('empty Sheet stays untouched', window.__writes.length, 0);
   },

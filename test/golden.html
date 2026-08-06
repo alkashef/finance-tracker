@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Finance Tracker — golden DOM snapshot</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  #report {
+    position: fixed; inset: 0; z-index: 9999; overflow: auto; margin: 0;
+    padding: 24px; background: #fff; font: 12px/1.6 ui-monospace, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+  }
+  #report:empty { display: none; }
+  .pass { color: #047857; }
+  .fail { color: #dc2626; font-weight: 700; }
+  #golden-output { display: none; }
+</style>
+<script src="fixtures.js"></script>
+<script src="harness.js"></script>
+<script>
+/* Golden DOM snapshot for app.js. Walks every screen (fixed order, fixed
+   expand/collapse state) against the same stubbed Sheets API smoke.html uses, and
+   either compares the rendered #sidebar/#main HTML to test/golden.json, or — with
+   ?update=1 — emits the freshly captured HTML for scripts/test.ps1 to write there.
+   Along the way it also runs the CSS coverage check: every class name touched by the
+   walk vs. every class selector styles.css defines.
+
+   Run:  serve the repo, then open
+         http://localhost:8723/test/golden.html               (compare, populated)
+         http://localhost:8723/test/golden.html?scenario=empty (compare, empty)
+         …&update=1 on either to (re)capture the baseline — reviewed by hand, then
+         committed. scripts/test.ps1 -Update drives this; don't hand-edit golden.json. */
+
+/* window.fetch is about to be replaced with the Sheets-API stub below. Keep a
+   handle to the real one for this harness's own requests (styles.css, golden.json) —
+   those must hit the actual static server, not the stub. */
+var nativeFetch = window.fetch.bind(window);
+
+var SCENARIO = new URLSearchParams(location.search).get('scenario') || 'populated';
+var UPDATE = new URLSearchParams(location.search).get('update') === '1';
+var DATA = SCENARIO === 'empty' ? EMPTY : POPULATED;
+
+installHarness(DATA);
+</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main" id="main"></div>
+</div>
+<pre id="report"></pre>
+<pre id="golden-output"></pre>
+
+<script src="../app.js"></script>
+<script>
+var log = [];
+var failures = 0;
+var results = {};
+var usedClasses = {};
+
+function check(name, actual, expected) {
+  var ok = String(actual) === String(expected);
+  if (!ok) failures++;
+  log.push((ok ? '  pass  ' : '  FAIL  ') + name +
+    (ok ? ' = ' + actual : ' — expected ' + expected + ', got ' + actual));
+}
+function note(text) { log.push('        ' + text); }
+function section(text) { log.push('\n' + text); }
+
+function el(sel) { return document.querySelector(sel); }
+function click(sel) {
+  var e = el(sel);
+  if (!e) { failures++; log.push('  FAIL  missing ' + sel); return false; }
+  e.click();
+  return true;
+}
+function clickIfPresent(sel) {
+  var e = el(sel);
+  if (e) e.click();
+  return !!e;
+}
+function typeInto(sel, value) {
+  var e = el(sel);
+  if (!e) { failures++; log.push('  FAIL  missing ' + sel); return; }
+  e.value = value;
+  e.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function collectClasses(html) {
+  var re = /class="([^"]*)"/g, m;
+  while ((m = re.exec(html))) {
+    m[1].split(/\s+/).forEach(function (c) { if (c) usedClasses[c] = true; });
+  }
+}
+
+function capture(name) {
+  var sidebar = document.getElementById('sidebar').innerHTML;
+  var main = document.getElementById('main').innerHTML;
+  collectClasses(sidebar);
+  collectClasses(main);
+  results[name] = { sidebar: sidebar, main: main };
+  log.push('  captured ' + name);
+}
+
+/* Finds the first index the two strings diverge and returns a short, screen-naming
+   snippet around it — at hundreds of lines of HTML per screen, a full diff is
+   unusable, so this is deliberately narrow. */
+function firstDiffSnippet(actual, expected) {
+  actual = actual || '';
+  expected = expected || '';
+  var len = Math.min(actual.length, expected.length);
+  var i = 0;
+  while (i < len && actual[i] === expected[i]) i++;
+  if (i === actual.length && i === expected.length) return null;
+  var start = Math.max(0, i - 30);
+  /* The clip is itself a fragment of captured markup — it must be HTML-escaped before
+     going anywhere near the report's innerHTML, or its own tags get parsed as real
+     DOM instead of shown as the text of the diff. */
+  var clip = function (s) {
+    return s.slice(start, i + 50).replace(/\n/g, '\\n').replace(/[&<>]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
+    });
+  };
+  return 'at char ' + i + (actual.length !== expected.length ? ' (length ' + actual.length + ' vs ' + expected.length + ')' : '')
+    + ' — expected …' + clip(expected) + '…, got …' + clip(actual) + '…';
+}
+
+function checkScreen(name, pane, actual, expected) {
+  var ok = actual === expected;
+  if (!ok) failures++;
+  if (ok) log.push('  pass  ' + name + '.' + pane + ' matches');
+  else log.push('  FAIL  ' + name + '.' + pane + ' differs — ' + firstDiffSnippet(actual, expected));
+}
+
+/* ---------------------------------------------------------------- steps --- */
+
+var steps = [
+  function () {
+    section('connect');
+    typeInto('[data-f="clientId"]', 'stub.apps.googleusercontent.com');
+    click('[data-act="saveAndConnect"]');
+    typeInto('[data-f="spreadsheetId"]', 'stub-sheet-id');
+    click('[data-act="saveAndConnect"]');
+  },
+
+  function () { section('screens'); click('[data-act="openSettings"]'); capture('settings'); click('[data-act="closeSettings"]'); },
+  function () { capture('dashboard'); },
+  function () {
+    /* Maturity Watch only renders when something is maturing or sellable — clicking
+       only if present keeps this deterministic per scenario without hardcoding which. */
+    clickIfPresent('[data-act="toggleDashMaturity"]');
+    click('[data-act="toggleRecentTx"]');
+    capture('dashboard-expanded');
+  },
+  function () { click('[data-act="goTransactions"]'); capture('transactions-overview'); },
+  function () { click('[data-act="txTabManage"]'); capture('transactions-manage'); },
+  function () { click('[data-act="goGold"]'); capture('gold-overview'); },
+  function () { click('[data-act="goldTabManage"]'); capture('gold-manage'); },
+  function () { click('[data-act="goCerts"]'); capture('certs-overview'); },
+  function () { click('[data-act="certsTabManage"]'); capture('certs-manage'); },
+  function () { click('[data-act="goStocks"]'); capture('stocks-overview'); },
+  function () { click('[data-act="stockTabManage"]'); capture('stocks-manage'); },
+  function () { click('[data-act="goProvidentFund"]'); capture('pf-overview'); },
+  function () { click('[data-act="pfTabManage"]'); capture('pf-manage'); },
+  function () { click('[data-act="goAccounts"]'); capture('accounts'); },
+  function () { click('[data-act="goTypes"]'); capture('types'); },
+  function () { click('[data-act="goTags"]'); capture('tags'); },
+  function () { click('[data-act="goPlan"]'); capture('plan'); },
+  function () {
+    if (!el('[data-act="selectAccount"]')) { note('no accounts — skipping account-ledger screen'); return; }
+    click('[data-act="selectAccount"][data-i="0"]');
+    capture('account-ledger');
+  },
+
+  /* ------------------------------------------------------- CSS coverage --- */
+  function () {
+    section('CSS coverage (scenario: ' + SCENARIO + ')');
+    return nativeFetch('../styles.css').then(function (res) { return res.text(); }).then(function (css) {
+      var noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+      var classRe = /\.(-?[_a-zA-Z][_a-zA-Z0-9-]*)/g;
+      var defined = {};
+      var m;
+      while ((m = classRe.exec(noComments))) defined[m[1]] = true;
+
+      var undefinedClasses = Object.keys(usedClasses).filter(function (c) { return !defined[c]; }).sort();
+      var unusedClasses = Object.keys(defined).filter(function (c) { return !usedClasses[c]; }).sort();
+
+      check('no undefined classes used in DOM', undefinedClasses.length, 0);
+      if (undefinedClasses.length) note('undefined: ' + undefinedClasses.join(', '));
+      note('unused selectors in styles.css this scenario: ' + unusedClasses.length
+        + (unusedClasses.length ? ' — ' + unusedClasses.join(', ') : ''));
+    });
+  },
+
+  /* ------------------------------------------------------ compare/update --- */
+  function () {
+    if (UPDATE) {
+      document.getElementById('golden-output').textContent = JSON.stringify(results, null, 2);
+      note('captured ' + Object.keys(results).length + ' screens for scenario "' + SCENARIO
+        + '" — written to #golden-output for the runner to persist');
+      return;
+    }
+    return nativeFetch('golden.json').then(function (res) {
+      if (!res.ok) throw new Error('golden.json missing (status ' + res.status + ') — run scripts/test.ps1 -Update first');
+      return res.json();
+    }).then(function (baseline) {
+      var expectedScreens = (baseline && baseline[SCENARIO]) || {};
+      section('golden DOM snapshot (scenario: ' + SCENARIO + ')');
+      Object.keys(results).forEach(function (name) {
+        var exp = expectedScreens[name];
+        if (!exp) { failures++; log.push('  FAIL  ' + name + ' — no baseline entry (run -Update after review)'); return; }
+        checkScreen(name, 'sidebar', results[name].sidebar, exp.sidebar);
+        checkScreen(name, 'main', results[name].main, exp.main);
+      });
+      var staleKeys = Object.keys(expectedScreens).filter(function (k) { return !results[k]; });
+      if (staleKeys.length) note('baseline has screens no longer captured: ' + staleKeys.join(', '));
+    });
+  },
+
+  function () {
+    var head = failures === 0
+      ? '<span class="pass">ALL CHECKS PASSED</span>'
+      : '<span class="fail">' + failures + ' CHECK(S) FAILED</span>';
+    var errs = window.__errors.length
+      ? '\n<span class="fail">JS errors: ' + window.__errors.join('; ') + '</span>'
+      : '\n<span class="pass">no JS errors</span>';
+    document.getElementById('report').innerHTML =
+      head + '  (scenario: ' + SCENARIO + (UPDATE ? ', UPDATE' : '') + ')' + errs + '\n' +
+      log.join('\n').replace(/  FAIL /g, '  <span class="fail">FAIL</span> ');
+  }
+];
+
+window.addEventListener('load', function () {
+  var i = 0;
+  function next() {
+    if (i >= steps.length) return;
+    var fn = steps[i++];
+    var result;
+    try { result = fn(); } catch (e) { failures++; log.push('  FAIL  step ' + (i - 1) + ' threw: ' + e.message); }
+    if (result && typeof result.then === 'function') {
+      result.then(function () { setTimeout(next, 30); }, function (e) {
+        failures++;
+        log.push('  FAIL  step ' + (i - 1) + ' rejected: ' + (e && e.message || e));
+        setTimeout(next, 30);
+      });
+    } else {
+      setTimeout(next, 60);
+    }
+  }
+  next();
+});
+</script>
+</body>
+</html>

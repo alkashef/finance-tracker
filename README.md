@@ -123,10 +123,17 @@ matching; the app converts these on read, but Plain text avoids the issue entire
 
 ## Checking a change
 
-Open <http://localhost:8723/test/smoke.html> with the server running. It drives every
-screen against a stubbed Sheets API and reports pass/fail — no network, no Google
-account needed. Add `?scenario=empty` to check the empty-Sheet path, or `?env=1` to
-check the `config/.env` prefill path.
+**Automated**: `powershell -ExecutionPolicy Bypass -File scripts\test.ps1` starts its
+own server on a free port, drives `test/smoke.html` and `test/golden.html` through
+headless Edge for every scenario, and prints one pass/fail summary. Needs Microsoft
+Edge installed; nothing else. `-Update` recaptures `test/golden.json` (the DOM
+baseline) from the current code — only do this after reviewing the diff, since a
+baseline captured after a change certifies the change.
+
+**By hand**: open <http://localhost:8723/test/smoke.html> with the server running. It
+drives every screen against a stubbed Sheets API and reports pass/fail — no network, no
+Google account needed. Add `?scenario=empty` to check the empty-Sheet path, or `?env=1`
+to check the `config/.env` prefill path.
 
 ## Where things are documented
 
