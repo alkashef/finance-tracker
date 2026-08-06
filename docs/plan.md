@@ -117,7 +117,7 @@ it, and that is where the ability to bisect is lost.
 | 3 | Descriptor-driven CRUD | ✅ done | **Opus 5** | **hard** |
 | 4 | Split `buildViewModel()` | ✅ done | **Opus 5** | on |
 | 5 | Shared view helpers | ✅ done | Sonnet 5 | on |
-| 6 | `src/js/` — ES modules | ⬜ | Sonnet 5 | on |
+| 6 | `src/js/` — ES modules | ✅ done | Sonnet 5 | on |
 | 7 | `src/css/` — tokens and split | ⬜ | Sonnet 5 | on |
 | 8 | Re-verify and document | ⬜ | Sonnet 5 → Opus 5 | on |
 
@@ -422,41 +422,91 @@ Target 8 files, none over ~400 lines, written straight to their final home:
 | `src/js/actions.js` | the `actions` and `fields` maps | ~250 |
 | `src/app.js` | render loop, event delegation, boot | ~120 |
 
-1. ⬜ Move the code; drop the IIFE wrapper (module scope is already private).
-2. ⬜ If `src/js/views.js` is still over ~500 lines, split it per screen.
-3. ⬜ `index.html` → `<script type="module" src="src/app.js">`; `test/smoke.html` →
-   `../src/app.js`.
-4. ⬜ Fix a latent path bug: `applyLocalDefaults()` calls `fetch('config/.env')`, which
+1. ✅ Move the code; drop the IIFE wrapper (module scope is already private).
+2. ✅ If `src/js/views.js` is still over ~500 lines, split it per screen. — it was
+   (~760 lines of helpers + screens before even counting import lines), so
+   `src/js/views.js` is now an 8-line barrel: it re-exports `viewSidebar` and defines
+   `viewScreen`/`viewMain`, importing each screen from `src/js/views/*.js` — one file
+   per screen, with the three trivial settings-list screens (Accounts, Transaction
+   Types, Tags) grouped into `views/lists.js` since `listsModel()` already treats them
+   as one family. `views/helpers.js` holds the shared markup builders (`tabBar`,
+   `statCard`, `dataTable`, etc.).
+3. ✅ `index.html` → `<script type="module" src="src/app.js">`; `test/smoke.html` →
+   `../src/app.js` — and, not called out by name in this milestone's own text but
+   needed for the same reason, `test/golden.html` and `test/crud.html` got the same
+   change, since both load the app the same way smoke.html does.
+4. ✅ Fix a latent path bug: `applyLocalDefaults()` calls `fetch('config/.env')`, which
    resolves **relative to the document**. From `/index.html` that is right; from
    `/test/smoke.html` it resolves to `/test/config/.env` and only passes because the
    stub matches on substring. Use `fetch(new URL('../config/.env', import.meta.url))`,
-   which resolves from the module regardless of which page loaded it.
-5. ⬜ Create `test/unit.html` — a module page importing from `src/js/*` — and wire it
+   which resolves from the module regardless of which page loaded it. — verified for
+   real: with a real `config/.env` served, `GET /test/config/.env` 404s (confirming the
+   old bug's failure mode) while `import.meta.url`-based resolution from `src/app.js`
+   prefilled `/index.html` correctly regardless of which page loaded the module.
+5. ✅ Create `test/unit.html` — a module page importing from `src/js/*` — and wire it
    into the runner. Leave it near-empty; Milestone 8 fills it. Creating it now proves
    the modules are importable from outside the app, which a boot check alone does not
-   establish.
+   establish. — also carries this milestone's own no-import-cycle check (below), since
+   that check needs real `import`/`export` parsing and has nowhere else to live yet.
+
+**What the module graph needed that a single IIFE didn't.** Two places in the old code
+relied on function hoisting to reference something defined later in the same file — a
+forward reference that has no equivalent across ES modules without introducing a cycle.
+Both are called out with a comment at each end:
+
+- `state.js`'s `set()` / `setForm()` / `toggle()` all call `render()`, but the real
+  `render()` (DOM writes, focus/scroll restore) lives in `app.js`, the last file in the
+  graph — `state.js` cannot import it without `app.js` importing `state.js` right back.
+  `state.js` instead exports a tiny `setRenderer(fn)` / `render()` indirection (a
+  module-scoped hook, defaulting to a no-op); `app.js` calls `setRenderer(render)` as
+  the first line of `boot()`, before anything can fire a handler.
+- `ENTITIES.transactions.after` (constants.js) and `fields.stockScenario`
+  (actions.js) both need a function that lives strictly downstream — the ledger
+  recompute in `model.js`, and `updateScenarioReadouts`/`lastVm` in `app.js`. Both are
+  left unset where the descriptor/map is built and patched in one line later —
+  `actions.js` patches the first right after importing `model.js`; `app.js` patches the
+  second right after importing `actions.js` — each with a comment pointing at this note.
 
 **Tests**
 
-- ⬜ **Nothing lost in the move.** Count function declarations across the 8 files and
-  assert it equals the count in the pre-split `app.js`. A dropped function is the
-  characteristic failure and may not surface until a rarely-used screen is opened.
-- ⬜ **Boot with zero console errors**, both scenarios — the harness records
+- ✅ **Nothing lost in the move.** Counted function declarations/expressions across the
+  new files against the pre-split `app.js`: 371 real functions before, 374 after — the
+  +3 is `state.js`'s `render`/`setRenderer` hook and the no-op it initialises
+  `renderer` to, all new by necessity (see above), not a drop.
+- ✅ **Boot with zero console errors**, both scenarios — the harness records
   `window.__errors`; an unresolved import or a cycle shows up there and nowhere else.
-- ⬜ **No import cycles.** Parse the `import` lines across `src/js/*.js` and assert the
-  graph is acyclic. ~15 lines, and it survives future files.
-- ⬜ **Served, not just opened.** Run through `scripts/serve.ps1` *and* `npx serve` —
-  modules hard-fail on a wrong MIME type where classic scripts did not.
-- ⬜ **`config/.env` resolves from both pages.** With a real `config/.env` present and
-  the fetch stub disabled, load `/index.html` *and* `/test/smoke.html` and assert both
-  prefill. Before the fix this fails from `/test/`, which is the point.
-- ⬜ **Deployed tree is complete.** After pushing, load the live site and confirm boot.
-  A file missed in the push is now a blank page, not a degraded one.
-- ⬜ Golden snapshot clean — a pure move must change nothing.
+- ✅ **No import cycles.** `test/unit.html` fetches the raw source of every
+  `src/**/*.js` file, strips comments, parses the `import`/`export …from` specifiers,
+  resolves them relative to each file, and walks the resulting graph for a cycle.
+  Confirmed acyclic.
+- ✅ **Served, not just opened.** Ran through `scripts/serve.ps1` *and* `npx serve` —
+  both serve `src/app.js` and nested `src/js/views/*.js` with a JS-family MIME type,
+  and `index.html` boots through either.
+- ✅ **`config/.env` resolves from both pages.** With a real `config/.env` present and
+  the fetch stub disabled, `/index.html` prefilled both fields (confirmed via headless
+  Edge). `/test/smoke.html` always installs the fetch stub as part of its own setup, so
+  it can't exercise the *real* fetch directly — the routing check in point 4 above
+  (`/test/config/.env` 404s, `/config/.env` doesn't) plus `import.meta.url` being
+  loader-independent by construction is what stands in for it.
+- ⬜ **Deployed tree is complete.** Not checked here — no push happened this session
+  (`CLAUDE.md`'s git discipline). Load the live site after the next deploy and confirm
+  boot; a file missed in the push is now a blank page, not a degraded one.
+- ✅ Golden snapshot clean — `scripts/test.ps1` ran byte-identical against the
+  committed `golden.json`, and `crud.json` likewise; neither was re-baselined.
 
 **Run it with:** Sonnet 5, thinking on, **in one session without a compaction**. It is
 mechanical, but it touches every line at once and the risk is omission, not
 misjudgement. Escalate to Opus 5 only if a cycle or boot failure needs untangling.
+
+**What it cost:** `app.js` (2,629 lines, one IIFE) became 20 files under `src/`: the 7
+named in the table above (`views.js` ended up an 8-line barrel rather than holding the
+screens itself) plus 12 files under `src/js/views/` — one per screen, `lists.js`
+grouping the three trivial settings-list screens, and `helpers.js` for the shared
+markup builders. Total line count grew, as it did in Milestones 4 and 5 — every file
+now carries its own `import` block, and the module graph needed the small
+render-hook indirection in `state.js` plus the two documented patch-after-import
+wirings — but no file is close to the ~400-line target, and a screen or a builder is
+now nameable by its file path, not just its function name.
 
 ---
 

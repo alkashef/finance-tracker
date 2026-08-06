@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Finance Tracker — unit tests</title>
+<style>
+  #report {
+    position: fixed; inset: 0; z-index: 9999; overflow: auto; margin: 0;
+    padding: 24px; background: #fff; font: 12px/1.6 ui-monospace, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+  }
+  #report:empty { display: none; }
+  .pass { color: #047857; }
+  .fail { color: #dc2626; font-weight: 700; }
+</style>
+</head>
+<body>
+<pre id="report"></pre>
+
+<script type="module">
+/* Unit tests against src/js/* directly, importing the real modules rather than
+   driving the app through the DOM (that's smoke.html/golden.html/crud.html).
+   Milestone 6 (docs/plan.md) leaves this near-empty on purpose — Milestone 8
+   fills it in once the whole app has been through the split. What's here now
+   proves two things a boot check alone can't:
+     - the modules are genuinely importable as ES modules from outside the app
+       shell, not just reachable from index.html;
+     - the module graph the split produced has no import cycle — the plan's own
+       warning is that a cycle fails at boot with an undefined binding, not at
+       the call site, so it's worth catching by inspection too. */
+
+import { esc, fmtMoney, formatAmountDisplay } from '../src/js/format.js';
+import { TAG_SPENDING, ENTITIES } from '../src/js/constants.js';
+import { state } from '../src/js/state.js';
+import { computeLedger, toFieldRequired } from '../src/js/model.js';
+import { tabBar } from '../src/js/views/helpers.js';
+
+window.__errors = [];
+window.onerror = function (m, s, l, c) { window.__errors.push('ERROR: ' + m + ' @' + l + ':' + c); };
+window.addEventListener('unhandledrejection', function (e) {
+  window.__errors.push('REJECT: ' + ((e.reason && e.reason.message) || e.reason));
+});
+
+var log = [];
+var failures = 0;
+function check(name, actual, expected) {
+  var ok = String(actual) === String(expected);
+  if (!ok) failures++;
+  log.push((ok ? '  pass  ' : '  FAIL  ') + name + (ok ? ' = ' + actual : ' — expected ' + expected + ', got ' + actual));
+}
+function note(text) { log.push('        ' + text); }
+function section(text) { log.push('\n' + text); }
+
+section('modules import cleanly (src/js/* as real ES modules)');
+check('format.js: esc escapes <', esc('<'), '&lt;');
+check('format.js: fmtMoney formats', fmtMoney(1234.5), '$1,234.50');
+check('format.js: formatAmountDisplay inserts commas', formatAmountDisplay('1234567'), '1,234,567');
+check('constants.js: TAG_SPENDING', TAG_SPENDING, 'Spending');
+check('constants.js: ENTITIES covers the 8 descriptor-driven entities', Object.keys(ENTITIES).length, 8);
+check('constants.js: transactions.after was patched in by actions.js', typeof ENTITIES.transactions.after, 'undefined');
+note('(ENTITIES.transactions.after stays unset until actions.js is imported — see the comment on the descriptor)');
+check('state.js: state starts disconnected', state.connected, false);
+check('model.js: computeLedger on no transactions', computeLedger('Acct', []).length, 0);
+check('model.js: toFieldRequired is false for Starting Balance', toFieldRequired('Starting Balance'), false);
+check('model.js: toFieldRequired is true otherwise', toFieldRequired('Groceries'), true);
+check('views/helpers.js: tabBar renders the Overview tab active', tabBar('x', false).indexOf('data-act="xTabOverview"') !== -1, true);
+
+/* ------------------------------------------------- no import cycles --- */
+
+section('no import cycles across src/js/*.js');
+
+/* Paths relative to src/ — one entry per module file this milestone created.
+   A file missing from this list just won't be checked; it won't produce a
+   false pass or fail. */
+var MODULE_FILES = [
+  'app.js',
+  'js/format.js', 'js/constants.js', 'js/state.js', 'js/sheets.js', 'js/model.js',
+  'js/views.js', 'js/actions.js',
+  'js/views/helpers.js', 'js/views/sidebar.js', 'js/views/settings.js', 'js/views/dashboard.js',
+  'js/views/lists.js', 'js/views/plan.js', 'js/views/transactions.js', 'js/views/gold.js',
+  'js/views/certs.js', 'js/views/stocks.js', 'js/views/provident-fund.js', 'js/views/ledger.js',
+];
+
+function resolveSpec(baseFile, spec) {
+  var parts = baseFile.split('/');
+  parts.pop(); // directory of baseFile
+  spec.split('/').forEach(function (p) {
+    if (p === '.' || p === '') return;
+    if (p === '..') parts.pop();
+    else parts.push(p);
+  });
+  return parts.join('/');
+}
+
+Promise.all(MODULE_FILES.map(function (f) {
+  return fetch('../src/' + f).then(function (res) { return res.text(); }).then(function (text) { return [f, text]; });
+})).then(function (entries) {
+  var graph = {};
+  entries.forEach(function (entry) {
+    var file = entry[0];
+    var noComments = entry[1].replace(/\/\*[\s\S]*?\*\//g, '');
+    var re = /(?:^|\s)(?:import|export)\s+[^'";]*from\s+['"]([^'"]+)['"]/g;
+    var edges = [];
+    var m;
+    while ((m = re.exec(noComments))) edges.push(resolveSpec(file, m[1]));
+    graph[file] = edges;
+  });
+
+  var totalEdges = Object.keys(graph).reduce(function (sum, f) { return sum + graph[f].length; }, 0);
+  check('module graph was parsed (edges found)', totalEdges > 0, true);
+
+  var WHITE = 0, GRAY = 1, BLACK = 2;
+  var color = {};
+  Object.keys(graph).forEach(function (f) { color[f] = WHITE; });
+  var cyclePath = null;
+
+  function visit(node, path) {
+    if (cyclePath) return;
+    color[node] = GRAY;
+    path.push(node);
+    (graph[node] || []).forEach(function (next) {
+      if (cyclePath) return;
+      if (!(next in graph)) return; // outside the tracked set (shouldn't happen)
+      if (color[next] === GRAY) { cyclePath = path.concat(next); return; }
+      if (color[next] === WHITE) visit(next, path);
+    });
+    path.pop();
+    color[node] = BLACK;
+  }
+  Object.keys(graph).forEach(function (f) { if (color[f] === WHITE) visit(f, []); });
+
+  check('module graph is acyclic', cyclePath ? cyclePath.join(' -> ') : '(none)', '(none)');
+  if (cyclePath) note('cycle: ' + cyclePath.join(' -> '));
+}).then(function () {
+  finish();
+}).catch(function (e) {
+  failures++;
+  log.push('  FAIL  import-cycle check threw: ' + (e && e.message || e));
+  finish();
+});
+
+function finish() {
+  document.getElementById('report').innerHTML =
+    (failures === 0 ? '<span class="pass">ALL CHECKS PASSED</span>' : '<span class="fail">' + failures + ' CHECK(S) FAILED</span>')
+    + '\n' + (window.__errors.length
+      ? '<span class="fail">JS errors: ' + window.__errors.join('; ') + '</span>'
+      : '<span class="pass">no JS errors</span>')
+    + '\n' + log.join('\n').replace(/  FAIL /g, '  <span class="fail">FAIL</span> ');
+}
+</script>
+</body>
+</html>

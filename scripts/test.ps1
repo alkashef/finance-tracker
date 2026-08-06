@@ -183,7 +183,8 @@ function Main {
       @{ Url = "$base/test/golden.html"; Label = 'golden (populated)' },
       @{ Url = "$base/test/golden.html?scenario=empty"; Label = 'golden (empty)' },
       @{ Url = "$base/test/crud.html"; Label = 'crud (populated)' },
-      @{ Url = "$base/test/crud.html?scenario=empty"; Label = 'crud (empty)' }
+      @{ Url = "$base/test/crud.html?scenario=empty"; Label = 'crud (empty)' },
+      @{ Url = "$base/test/unit.html"; Label = 'unit' }
     )
 
     $allOk = $true
