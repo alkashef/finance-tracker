@@ -18,6 +18,7 @@ import { viewGold } from './views/gold.js';
 import { viewCerts } from './views/certs.js';
 import { viewStocks } from './views/stocks.js';
 import { viewProvidentFund } from './views/provident-fund.js';
+import { viewPrices } from './views/prices.js';
 import { viewLedger } from './views/ledger.js';
 
 function viewScreen(v) {
@@ -32,6 +33,7 @@ function viewScreen(v) {
     case 'certs': return viewCerts(v);
     case 'stocks': return viewStocks(v);
     case 'pf': return viewProvidentFund(v);
+    case 'prices': return viewPrices(v);
     default: return v.isLedger ? viewLedger(v) : '';
   }
 }

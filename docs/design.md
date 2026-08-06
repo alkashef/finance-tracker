@@ -302,6 +302,20 @@ typing the number in by hand. This is deliberate: a flaky or misread response fr
 third-party API gets a chance to be reviewed before it overwrites the Sheet, which is
 the single source of truth.
 
+**The Market Prices screen** (`src/js/views/prices.js`, sidebar's Settings group,
+`activeSheet: 'prices'`) is a fourth, read-only consumer of `marketData.js`: its
+`checkTodaysPrices` action (`actions.js`) fetches gold, the Stocks screen's Symbol and
+every currency already on the Currency Rates panel all at once, and holds the results
+in their own state slice, `state.priceCheck` — never `goldPriceForm` / `stockPriceForm`
+/ `rateForm`, so a check here can never disturb an edit in progress on the Gold,
+Stocks or Certificates Manage screens, and this screen writes nothing to the Sheet at
+all. Each leg (gold, stock, one per currency) is caught independently — `{ price /
+rate, asOf }` on success, `{ error }` on failure, `null` before the first check this
+session — so a missing key or symbol on one leg is reported right there without
+blocking the other two. It bypasses the usual `state.loading` / `state.error`
+banner for this reason: three independent results need to render at once, which a
+single global error message can't express.
+
 **The two keys (GoldAPI.io, Alpha Vantage) live in `localStorage`**
 (`financeTracker.marketDataKeys`), written by `fields.goldApiKey` / `fields.stockApiKey`
 in `actions.js` on every keystroke and restored by `restoreConfig()` in `src/app.js`.

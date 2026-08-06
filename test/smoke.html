@@ -319,6 +319,24 @@ var steps = [
   function () { click('[data-act="goAccounts"]'); screen('accounts', '[data-f="acctName"]'); },
   function () { click('[data-act="goTypes"]'); screen('transaction types', '[data-f="typeName"]'); },
   function () { click('[data-act="goTags"]'); screen('tags', '[data-f="tagName"]'); },
+  function () { click('[data-act="goPrices"]'); screen('market prices', '[data-act="checkTodaysPrices"]'); },
+  function () {
+    section('market prices check');
+    /* goldApiKey/stockApiKey were cleared back to '' by the gold/stock fetch
+       tests above, so this is a clean run of the no-key path for both. */
+    click('[data-act="checkTodaysPrices"]');
+  },
+  function () {
+    var text = document.getElementById('main').textContent;
+    check('gold leg reports the missing key', /No GoldAPI\.io key set/.test(text), true);
+    check('stock leg reports the missing key', /No Alpha Vantage key set/.test(text), true);
+    if (DATA[7].length) {
+      check('a currency leg surfaces a clean parse error under the stub', /Exchange-rate lookup failed for/.test(text), true);
+    } else {
+      check('no currencies yet shows the empty hint', /No currencies set yet/.test(text), true);
+    }
+    check('no unhandled JS error from checking all three at once', window.__errors.length, 0);
+  },
   function () { click('[data-act="goPlan"]'); screen('plan', '[data-f="planItem"]'); },
 
   function () {

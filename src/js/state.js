@@ -67,6 +67,13 @@ export var state = {
   dashSpendingOpen: true,
   dashMaturityOpen: false,
   dashSavingOpen: true,
+  /* Market Prices screen — a read-only reference/validation lookup, wholly
+     separate from goldPriceForm/stockPriceForm/rateForm so checking a price
+     here never touches an in-progress edit on the Gold/Stocks/Certificates
+     Manage screens. Each of gold/stock/an entry in rates is either null (not
+     checked yet this session), { price/rate, asOf } on success, or { error }
+     — rates additionally carries { currency }, stock { symbol }. */
+  priceCheck: { loading: false, gold: null, stock: null, rates: [] },
 };
 
 /* Every mutator below calls render() synchronously — the same thing function

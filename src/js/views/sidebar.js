@@ -44,6 +44,7 @@ export function viewSidebar(v) {
       + navItem('Accounts', 'goAccounts', v.activeSheet === 'accounts')
       + navItem('Transaction Types', 'goTypes', v.activeSheet === 'types')
       + navItem('Tags', 'goTags', v.activeSheet === 'tags')
+      + navItem('Market Prices', 'goPrices', v.activeSheet === 'prices')
       + '</div>')
 
     + '<div class="nav-spacer"></div>'

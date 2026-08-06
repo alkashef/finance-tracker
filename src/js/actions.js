@@ -172,6 +172,7 @@ export var actions = {
   goCerts: function () { goto('certs'); },
   goStocks: function () { goto('stocks'); },
   goProvidentFund: function () { goto('pf'); },
+  goPrices: function () { goto('prices'); },
   goPlan: function () { goto('plan'); },
   selectAccount: function (d) { goto('account:' + state.accounts[+d.i]); },
   goldTabOverview: function () { set({ goldTab: 'overview' }); },
@@ -456,6 +457,40 @@ export var actions = {
       stockMeta: stockMeta, stockScenarioPrice: price,
       stockPriceForm: { symbol: '', currentPrice: '', cash: '', asOf: '' },
     }, 'Save error');
+  },
+
+  /* --- market prices (reference/validation, src/js/views/prices.js) ---
+     Deliberately independent of goldPriceForm/stockPriceForm/rateForm: this
+     screen only ever reads, so a check here can never disturb an in-progress
+     edit on the Gold/Stocks/Certificates Manage screens. Every leg is caught
+     individually — a missing key or a bad symbol on one shouldn't stop the
+     other two from reporting. Doesn't use the global loading/error banner
+     (state.loading/state.error) since three independent results need to show
+     at once; priceCheck carries its own per-item state instead. */
+  checkTodaysPrices: function () {
+    set({ priceCheck: { loading: true, gold: state.priceCheck.gold, stock: state.priceCheck.stock, rates: state.priceCheck.rates } });
+
+    var goldKey = state.goldApiKey.trim();
+    var goldP = goldKey
+      ? fetchGoldPriceEgp24k(goldKey).then(function (r) { return { price: r.price, asOf: r.asOf }; })
+        .catch(function (e) { return { error: e.message }; })
+      : Promise.resolve({ error: 'No GoldAPI.io key set — add one on the Gold Manage screen.' });
+
+    var stockKey = state.stockApiKey.trim();
+    var symbol = ((state.stockMeta && state.stockMeta.Symbol) || '').trim().toUpperCase();
+    var stockP = !stockKey ? Promise.resolve({ error: 'No Alpha Vantage key set — add one on the Stocks Manage screen.' })
+      : !symbol ? Promise.resolve({ error: 'No stock Symbol set on the Stocks Manage screen.' })
+      : fetchStockQuote(symbol, stockKey).then(function (r) { return { symbol: symbol, price: r.price, asOf: r.asOf }; })
+        .catch(function (e) { return { symbol: symbol, error: e.message }; });
+
+    var ratesP = Promise.all(state.rates.map(function (r) {
+      return fetchFxRateToEgp(r.Currency).then(function (res) { return { currency: r.Currency, rate: res.rate, asOf: res.asOf }; })
+        .catch(function (e) { return { currency: r.Currency, error: e.message }; });
+    }));
+
+    Promise.all([goldP, stockP, ratesP]).then(function (results) {
+      set({ priceCheck: { loading: false, gold: results[0], stock: results[1], rates: results[2] } });
+    });
   },
 };
 

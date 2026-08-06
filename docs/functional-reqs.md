@@ -98,6 +98,19 @@ Tags are editable on the Tags screen; the three above are seeded on first run.
   Vantage — a free API key, entered once, is required) and fills Current Price/As Of
   for review. It does not save by itself — "Update price" still applies it.
 
+## Market Prices
+
+- A read-only reference/validation screen (sidebar's Settings group) showing today's
+  live gold, stock and currency-rate figures side by side. "Check today's prices"
+  fetches all three at once — see [design.md](design.md) for the providers.
+- Gold shows the 24k EGP/gram spot price; stock shows the latest close for whatever
+  Symbol is set on the Stocks screen; currency rates show one figure per currency
+  already on the Currency Rates panel.
+- **Nothing here is saved.** It never writes the Sheet, and checking a price here never
+  touches the Gold/Stocks/Certificates Manage screens' pending forms — the two are
+  wholly independent. A missing API key or stock symbol is reported for that one
+  figure rather than blocking the other two.
+
 ## Provident Fund
 
 - A single balance + as-of date + tag, updated manually (not derived from

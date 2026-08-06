@@ -195,6 +195,7 @@ var steps = [
   function () { click('[data-act="goAccounts"]'); capture('accounts'); },
   function () { click('[data-act="goTypes"]'); capture('types'); },
   function () { click('[data-act="goTags"]'); capture('tags'); },
+  function () { click('[data-act="goPrices"]'); capture('prices'); },
   function () { click('[data-act="goPlan"]'); capture('plan'); },
   function () {
     if (!el('[data-act="selectAccount"]')) { note('no accounts — skipping account-ledger screen'); return; }
