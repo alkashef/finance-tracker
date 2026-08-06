@@ -859,7 +859,7 @@
         weightDisplay: weight.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' gm',
         where: it.Where || '', purchaseDate: it['Purchase Date'],
         costDisplay: fmtEGP(cost), valueDisplay: fmtEGP(value),
-        gainDisplay: signed(gain, fmtEGP), gainClass: gain >= 0 ? 'gain-pos' : 'gain-neg',
+        gainDisplay: signed(gain, fmtEGP), gainClass: gainClass(gain),
         tagDisplay: it.Tag || TAG_SAVING_OTHER,
       };
     });
@@ -874,7 +874,7 @@
         goldTotalGramsDisplay: totalGrams.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' gm',
         goldGainDisplay: signed(goldGain, fmtEGP),
         goldGainPctDisplay: signed(totalCost ? (goldGain / totalCost * 100) : 0, function (n) { return n.toFixed(1) + '%'; }),
-        goldGainCardClass: goldGain >= 0 ? 'c-gain' : 'c-loss',
+        goldGainCardClass: gainClass(goldGain, 'c-gain', 'c-loss'),
       },
       totals: { currentValueEgp: totalValue },
     };
@@ -953,7 +953,7 @@
         certTotalMaturityDisplay: fmtEGP(certTotalMaturity),
         certGainDisplay: signed(certGain, fmtEGP),
         certGainPctDisplay: signed(certPrincipalEgp ? (certGain / certPrincipalEgp * 100) : 0, function (n) { return n.toFixed(1) + '%'; }),
-        certGainCardClass: certGain >= 0 ? 'c-gain' : 'c-loss',
+        certGainCardClass: gainClass(certGain, 'c-gain', 'c-loss'),
       },
       totals: {
         maturityRows: maturityRows,
@@ -986,7 +986,7 @@
         sourceClass: src === 'ESPP' ? 'pill-source--espp' : 'pill-source--rsu',
         quantityDisplay: qty.toLocaleString('en-US', { maximumFractionDigits: 4 }),
         costDisplay: fmtMoney(cost), valueDisplay: fmtMoney(val),
-        gainDisplay: signed(gain, fmtMoney), gainClass: gain >= 0 ? 'gain-pos' : 'gain-neg',
+        gainDisplay: signed(gain, fmtMoney), gainClass: gainClass(gain),
       };
     });
     var heldQty = rsuNowQty + esppNowQty;
@@ -1054,10 +1054,10 @@
         esppNowValueDisplay: fmtMoney(esppNowVal),
         esppNowQtyDisplay: esppNowQty.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' sh',
         stockNowGainDisplay: signed(totalNowGain, fmtMoney),
-        stockNowGainClass: totalNowGain >= 0 ? 'gain-pos' : 'gain-neg',
+        stockNowGainClass: gainClass(totalNowGain),
         stockNowGainPctDisplay: signed(totalNowCost ? (totalNowGain / totalNowCost * 100) : 0, function (n) { return n.toFixed(2) + '%'; }),
         esppGainDisplay: signed(esppGain, fmtMoney),
-        esppGainClass: esppGain >= 0 ? 'gain-pos-alt' : 'gain-neg',
+        esppGainClass: gainClass(esppGain, 'gain-pos-alt'),
         esppGainPctDisplay: signed(esppNowCost ? (esppGain / esppNowCost * 100) : 0, function (n) { return n.toFixed(1) + '%'; }),
         esppPaidDisplay: fmtMoney(esppNowCost),
         unvestedTotalDisplay: fmtMoney(unvestedTotal),
@@ -1312,6 +1312,54 @@
     return '<span class="' + cls('chev', extraClass, open ? 'open' : '') + '">▸</span>';
   }
 
+  /* n >= 0 gets the positive class, else the negative one. Every screen that
+     colours a gain/loss figure reduces to this; the two optional args cover
+     the two places that colour something other than the plain gain-pos/neg
+     pair (a card border, ESPP's alternate positive shade). */
+  function gainClass(n, posClass, negClass) {
+    return n >= 0 ? (posClass || 'gain-pos') : (negClass || 'gain-neg');
+  }
+
+  /* The Overview/Manage tab bar repeated at the top of five screens. */
+  function tabBar(prefix, manage, teal) {
+    return '<div class="' + cls('tabs', teal ? 'tabs--teal' : '') + '">'
+      + '<div class="' + cls('tab', !manage ? 'active' : '') + '" data-act="' + prefix + 'TabOverview">Overview</div>'
+      + '<div class="' + cls('tab', manage ? 'active' : '') + '" data-act="' + prefix + 'TabManage">Manage</div>'
+      + '</div>';
+  }
+
+  /* A labelled figure with a colour accent. `valueHtml` is pre-built (and
+     already escaped by the caller) so a card can mix static text with a
+     formatted number, as the gain cards do. */
+  function statCard(label, valueHtml, colourClass, valueClass) {
+    return '<div class="' + cls('stat', colourClass) + '"><div class="stat-label">' + esc(label) + '</div>'
+      + '<div class="' + cls('stat-value', valueClass) + '">' + valueHtml + '</div></div>';
+  }
+
+  function statCardSm(label, valueHtml, colourClass, valueClass) {
+    return '<div class="' + cls('stat-sm', colourClass) + '"><div class="stat-label">' + esc(label) + '</div>'
+      + '<div class="' + cls('stat-value-sm', valueClass) + '">' + valueHtml + '</div></div>';
+  }
+
+  /* The header/row/actions shape shared by the plain list tables: an optional
+     <thead> (omit `columns` for the header-less ones), one <tr> per row via
+     `cells(row)`, and an optional trailing actions column via `rowActions`.
+     The dashboard currency cards and the certificate group tables don't fit
+     this shape closely enough to be worth forcing through it, and neither do
+     the tables with a conditional Manage-mode actions column or a sortable
+     header — those all stay written out. */
+  function dataTable(opts) {
+    var head = opts.columns ? '<thead><tr>' + opts.columns.map(function (c) {
+      return '<th class="' + cls('th', c.cls) + '">' + c.label + '</th>';
+    }).join('') + '</tr></thead>' : '';
+    var body = opts.rows.map(function (row) {
+      return '<tr class="row">' + opts.cells(row)
+        + (opts.rowActions ? rowActions(opts.rowActions.editAct, opts.rowActions.deleteAct, row.index, opts.rowActions.tdClass) : '')
+        + '</tr>';
+    }).join('');
+    return '<table class="' + cls('table', opts.tableClass) + '">' + head + body + '</table>';
+  }
+
   /* ------------------------------------------------------ 7. screen views --- */
 
   function viewSidebar(v) {
@@ -1434,8 +1482,8 @@
         return '<div class="group-card">'
           + '<div class="group-title">' + esc(g.owner) + '</div>'
           + '<div class="group-stats">'
-          + '<div class="stat-sm c-fuchsia"><div class="stat-label">As of</div><div class="stat-value-sm">' + esc(g.lastDateDisplay) + '</div></div>'
-          + '<div class="stat-sm c-purple"><div class="stat-label">Total balance</div><div class="stat-value-sm">' + esc(g.subtotalDisplay) + '</div></div>'
+          + statCardSm('As of', esc(g.lastDateDisplay), 'c-fuchsia')
+          + statCardSm('Total balance', esc(g.subtotalDisplay), 'c-purple')
           + '</div>'
           + '<table class="table">'
           + g.rows.map(function (r) {
@@ -1463,23 +1511,23 @@
       + when(state.dashOtherOpen,
         '<div class="group-grid">'
         + when(v.hasCerts, '<div class="wide-card"><div class="group-title">Certificates</div><div class="stat-row">'
-          + '<div class="stat-sm c-blue"><div class="stat-label">Current EGP value</div><div class="stat-value-sm">' + esc(v.certTotalCurrentDisplay) + '</div></div>'
-          + '<div class="stat-sm c-purple"><div class="stat-label">At maturity</div><div class="stat-value-sm">' + esc(v.certTotalMaturityDisplay) + '</div></div>'
-          + '<div class="stat-sm ' + v.certGainCardClass + '"><div class="stat-label">Gain vs principal</div><div class="stat-value-sm">' + esc(v.certGainDisplay) + ' (' + esc(v.certGainPctDisplay) + ')</div></div>'
+          + statCardSm('Current EGP value', esc(v.certTotalCurrentDisplay), 'c-blue')
+          + statCardSm('At maturity', esc(v.certTotalMaturityDisplay), 'c-purple')
+          + statCardSm('Gain vs principal', esc(v.certGainDisplay) + ' (' + esc(v.certGainPctDisplay) + ')', v.certGainCardClass)
           + '</div></div>')
         + '</div>'
         + '<div class="group-grid">'
         + when(v.hasGold, '<div class="wide-card"><div class="group-title">Gold</div><div class="stat-row">'
-          + '<div class="stat-sm c-amber"><div class="stat-label">Current value</div><div class="stat-value-sm">' + esc(v.goldTotalCurrentDisplay) + '</div></div>'
-          + '<div class="stat-sm c-purple"><div class="stat-label">Grams held</div><div class="stat-value-sm">' + esc(v.goldTotalGramsDisplay) + '</div></div>'
-          + '<div class="stat-sm ' + v.goldGainCardClass + '"><div class="stat-label">Gain vs cost</div><div class="stat-value-sm">' + esc(v.goldGainDisplay) + '</div></div>'
+          + statCardSm('Current value', esc(v.goldTotalCurrentDisplay), 'c-amber')
+          + statCardSm('Grams held', esc(v.goldTotalGramsDisplay), 'c-purple')
+          + statCardSm('Gain vs cost', esc(v.goldGainDisplay), v.goldGainCardClass)
           + '</div></div>')
         + '</div>'
         + '<div class="group-grid">'
         + when(v.hasStocks, '<div class="wide-card"><div class="group-title">Stocks' + esc(v.stockSymbolSuffix) + '</div><div class="stat-row">'
-          + '<div class="stat-sm c-teal"><div class="stat-label">Sellable now</div><div class="stat-value-sm">' + esc(v.sellableNowDisplay) + '</div></div>'
-          + '<div class="stat-sm c-slate"><div class="stat-label">🔒 Vesting later</div><div class="stat-value-sm">' + esc(v.unvestedTotalDisplay) + '</div></div>'
-          + '<div class="stat-sm c-green"><div class="stat-label">Gain if sold now</div><div class="stat-value-sm ' + v.stockNowGainClass + '">' + esc(v.stockNowGainDisplay) + ' (' + esc(v.stockNowGainPctDisplay) + ')</div></div>'
+          + statCardSm('Sellable now', esc(v.sellableNowDisplay), 'c-teal')
+          + statCardSm('🔒 Vesting later', esc(v.unvestedTotalDisplay), 'c-slate')
+          + statCardSm('Gain if sold now', esc(v.stockNowGainDisplay) + ' (' + esc(v.stockNowGainPctDisplay) + ')', 'c-green', v.stockNowGainClass)
           + '</div></div>')
         + '</div>'
         + '<div class="group-grid">' + ownerGroupCards(v.otherSavingGroups) + '</div>');
@@ -1488,18 +1536,18 @@
       + when(state.dashSavingOpen, school + other);
 
     var recent = '<div class="sec-recent" data-act="toggleRecentTx">' + chevron(state.recentTxOpen) + 'Recent transactions</div>'
-      + when(state.recentTxOpen, '<table class="table"><thead><tr>'
-        + '<th class="th">Date</th><th class="th">Description</th><th class="th">From → To</th><th class="th right">Amount</th>'
-        + '</tr></thead>'
-        + v.recentTransactions.map(function (t) {
-          return '<tr class="row">'
-            + '<td class="td">' + esc(t.date) + '</td>'
+      + when(state.recentTxOpen, dataTable({
+        columns: [
+          { label: 'Date' }, { label: 'Description' }, { label: 'From → To' }, { label: 'Amount', cls: 'right' },
+        ],
+        rows: v.recentTransactions,
+        cells: function (t) {
+          return '<td class="td">' + esc(t.date) + '</td>'
             + '<td class="td">' + esc(t.description) + '</td>'
             + '<td class="td link">' + esc(t.fromTo) + '</td>'
-            + '<td class="td num">' + esc(t.amountDisplay) + '</td>'
-            + '</tr>';
-        }).join('')
-        + '</table>');
+            + '<td class="td num">' + esc(t.amountDisplay) + '</td>';
+        },
+      }));
 
     return '<h2 class="page-title">Dashboard</h2>' + maturity + currency + spending + saving + recent;
   }
@@ -1516,16 +1564,15 @@
       + '<button class="btn-p" data-act="submitAccountForm">' + (state.acctForm.mode === 'edit' ? 'Save changes' : 'Add account') + '</button>'
       + when(state.acctForm.mode === 'edit', '<button class="btn-ghost" data-act="cancelAccountForm">Cancel</button>')
       + '</div>'
-      + '<table class="table">'
-      + v.accountRows.map(function (r) {
-        return '<tr class="row">'
-          + '<td class="td-lg">' + esc(r.name) + '</td>'
-          + '<td class="td-lg muted">' + esc(r.owner) + '</td>'
-          + '<td class="td-lg sm">' + esc(r.tagDisplay) + '</td>'
-          + rowActions('editAccount', 'deleteAccount', r.index, 'td-lg')
-          + '</tr>';
-      }).join('')
-      + '</table>';
+      + dataTable({
+        rows: v.accountRows,
+        cells: function (r) {
+          return '<td class="td-lg">' + esc(r.name) + '</td>'
+            + '<td class="td-lg muted">' + esc(r.owner) + '</td>'
+            + '<td class="td-lg sm">' + esc(r.tagDisplay) + '</td>';
+        },
+        rowActions: { editAct: 'editAccount', deleteAct: 'deleteAccount', tdClass: 'td-lg' },
+      });
   }
 
   function viewTypes(v) {
@@ -1536,12 +1583,11 @@
       + '<button class="btn-p" data-act="submitTypeForm">' + (state.typeForm.mode === 'edit' ? 'Save changes' : 'Add type') + '</button>'
       + when(state.typeForm.mode === 'edit', '<button class="btn-ghost" data-act="cancelTypeForm">Cancel</button>')
       + '</div>'
-      + '<table class="table">'
-      + v.typeRows.map(function (r) {
-        return '<tr class="row"><td class="td-lg">' + esc(r.name) + '</td>'
-          + rowActions('editType', 'deleteType', r.index, 'td-lg') + '</tr>';
-      }).join('')
-      + '</table>';
+      + dataTable({
+        rows: v.typeRows,
+        cells: function (r) { return '<td class="td-lg">' + esc(r.name) + '</td>'; },
+        rowActions: { editAct: 'editType', deleteAct: 'deleteType', tdClass: 'td-lg' },
+      });
   }
 
   function viewTags(v) {
@@ -1553,12 +1599,11 @@
       + '<button class="btn-p" data-act="submitTagForm">' + (state.tagForm.mode === 'edit' ? 'Save changes' : 'Add tag') + '</button>'
       + when(state.tagForm.mode === 'edit', '<button class="btn-ghost" data-act="cancelTagForm">Cancel</button>')
       + '</div>'
-      + '<table class="table">'
-      + v.tagRows.map(function (r) {
-        return '<tr class="row"><td class="td-lg">' + esc(r.name) + '</td>'
-          + rowActions('editTag', 'deleteTag', r.index, 'td-lg') + '</tr>';
-      }).join('')
-      + '</table>';
+      + dataTable({
+        rows: v.tagRows,
+        cells: function (r) { return '<td class="td-lg">' + esc(r.name) + '</td>'; },
+        rowActions: { editAct: 'editTag', deleteAct: 'deleteTag', tdClass: 'td-lg' },
+      });
   }
 
   function viewPlan(v) {
@@ -1610,10 +1655,7 @@
 
     return '<div class="page-head"><h2 class="page-title page-title--flush">Transactions</h2>'
       + '<button class="btn-export" data-act="exportTransactionsCsv">Export CSV</button></div>'
-      + '<div class="tabs">'
-      + '<div class="' + cls('tab', !manage ? 'active' : '') + '" data-act="txTabOverview">Overview</div>'
-      + '<div class="' + cls('tab', manage ? 'active' : '') + '" data-act="txTabManage">Manage</div>'
-      + '</div>'
+      + tabBar('tx', manage)
       + form
       + '<input class="search-input" data-f="search" value="' + esc(state.search) + '" placeholder="Search transactions…">'
       + '<table class="table"><thead><tr>'
@@ -1641,11 +1683,10 @@
     var manage = state.goldTab === 'manage';
 
     var overview = when(!manage, '<div class="stat-grid">'
-      + '<div class="stat c-amber"><div class="stat-label">Current value</div><div class="stat-value">' + esc(v.goldTotalCurrentDisplay) + '</div></div>'
-      + '<div class="stat c-blue"><div class="stat-label">Cost basis</div><div class="stat-value">' + esc(v.goldTotalPurchaseDisplay) + '</div></div>'
-      + '<div class="stat c-purple"><div class="stat-label">Grams held</div><div class="stat-value">' + esc(v.goldTotalGramsDisplay) + '</div></div>'
-      + '<div class="stat ' + v.goldGainCardClass + '"><div class="stat-label">Gain vs cost</div>'
-      + '<div class="stat-value">' + esc(v.goldGainDisplay) + ' (' + esc(v.goldGainPctDisplay) + ')</div></div>'
+      + statCard('Current value', esc(v.goldTotalCurrentDisplay), 'c-amber')
+      + statCard('Cost basis', esc(v.goldTotalPurchaseDisplay), 'c-blue')
+      + statCard('Grams held', esc(v.goldTotalGramsDisplay), 'c-purple')
+      + statCard('Gain vs cost', esc(v.goldGainDisplay) + ' (' + esc(v.goldGainPctDisplay) + ')', v.goldGainCardClass)
       + '</div>');
 
     var manageForms = when(manage,
@@ -1672,10 +1713,7 @@
       + '</div>');
 
     return '<h2 class="page-title page-title--mid">Gold</h2>'
-      + '<div class="tabs">'
-      + '<div class="' + cls('tab', !manage ? 'active' : '') + '" data-act="goldTabOverview">Overview</div>'
-      + '<div class="' + cls('tab', manage ? 'active' : '') + '" data-act="goldTabManage">Manage</div>'
-      + '</div>'
+      + tabBar('gold', manage)
       + overview + manageForms
       + '<table class="table"><thead><tr>'
       + '<th class="th">Qty</th><th class="th">Type</th><th class="th">Brand</th>'
@@ -1708,10 +1746,9 @@
     var manage = state.certsTab === 'manage';
 
     var overview = when(!manage, '<div class="stat-grid mb-20">'
-      + '<div class="stat c-blue"><div class="stat-label">Current EGP value</div><div class="stat-value">' + esc(v.certTotalCurrentDisplay) + '</div></div>'
-      + '<div class="stat c-purple"><div class="stat-label">At maturity (EGP)</div><div class="stat-value">' + esc(v.certTotalMaturityDisplay) + '</div></div>'
-      + '<div class="stat ' + v.certGainCardClass + '"><div class="stat-label">Gain vs principal</div>'
-      + '<div class="stat-value">' + esc(v.certGainDisplay) + ' (' + esc(v.certGainPctDisplay) + ')</div></div>'
+      + statCard('Current EGP value', esc(v.certTotalCurrentDisplay), 'c-blue')
+      + statCard('At maturity (EGP)', esc(v.certTotalMaturityDisplay), 'c-purple')
+      + statCard('Gain vs principal', esc(v.certGainDisplay) + ' (' + esc(v.certGainPctDisplay) + ')', v.certGainCardClass)
       + '</div>');
 
     var manageForms = when(manage,
@@ -1778,10 +1815,7 @@
     }).join('');
 
     return '<h2 class="page-title page-title--mid">Certificates</h2>'
-      + '<div class="tabs">'
-      + '<div class="' + cls('tab', !manage ? 'active' : '') + '" data-act="certsTabOverview">Overview</div>'
-      + '<div class="' + cls('tab', manage ? 'active' : '') + '" data-act="certsTabManage">Manage</div>'
-      + '</div>'
+      + tabBar('certs', manage)
       + overview + manageForms + groups
       + when(v.certEmpty, '<div class="empty-cell">No certificates yet</div>');
   }
@@ -1866,23 +1900,24 @@
       + field('Acquired', dateInput('holdingAcquired', hf.acquired))
       + submitPair('submitHoldingForm', 'cancelHoldingForm', hf.mode === 'edit' ? 'Save changes' : 'Add lot', hf.mode === 'edit', 'btn-row btn-row--sm')
       + '</div>'
-      + '<table class="table mb-32"><thead><tr>'
-      + '<th class="th wide">Source</th><th class="th wide">Label</th><th class="th wide right">Quantity</th>'
-      + '<th class="th wide right">Cost basis</th><th class="th wide right">Value now</th>'
-      + '<th class="th wide right">Gain</th><th class="th wide right"></th>'
-      + '</tr></thead>'
-      + v.holdingRows.map(function (r) {
-        return '<tr class="row">'
-          + '<td class="td-x"><span class="pill-source ' + r.sourceClass + '">' + esc(r.source) + '</span></td>'
-          + '<td class="td-x">' + esc(r.label) + '</td>'
-          + '<td class="td-x num">' + esc(r.quantityDisplay) + '</td>'
-          + '<td class="td-x num">' + esc(r.costDisplay) + '</td>'
-          + '<td class="td-x num">' + esc(r.valueDisplay) + '</td>'
-          + '<td class="td-x num bold ' + r.gainClass + '">' + esc(r.gainDisplay) + '</td>'
-          + rowActions('editHolding', 'deleteHolding', r.index, 'td-x')
-          + '</tr>';
-      }).join('')
-      + '</table>'
+      + dataTable({
+        tableClass: 'mb-32',
+        columns: [
+          { label: 'Source', cls: 'wide' }, { label: 'Label', cls: 'wide' }, { label: 'Quantity', cls: 'wide right' },
+          { label: 'Cost basis', cls: 'wide right' }, { label: 'Value now', cls: 'wide right' },
+          { label: 'Gain', cls: 'wide right' }, { label: '', cls: 'wide right' },
+        ],
+        rows: v.holdingRows,
+        cells: function (r) {
+          return '<td class="td-x"><span class="pill-source ' + r.sourceClass + '">' + esc(r.source) + '</span></td>'
+            + '<td class="td-x">' + esc(r.label) + '</td>'
+            + '<td class="td-x num">' + esc(r.quantityDisplay) + '</td>'
+            + '<td class="td-x num">' + esc(r.costDisplay) + '</td>'
+            + '<td class="td-x num">' + esc(r.valueDisplay) + '</td>'
+            + '<td class="td-x num bold ' + r.gainClass + '">' + esc(r.gainDisplay) + '</td>';
+        },
+        rowActions: { editAct: 'editHolding', deleteAct: 'deleteHolding', tdClass: 'td-x' },
+      })
 
       + '<div class="subhead">Vesting schedule (not yours yet)</div>'
       + '<p class="subhint">Unvested RSU units that vest on future dates. Value = Units × current price.</p>'
@@ -1892,41 +1927,35 @@
       + field('Units', numInput('vestingUnits', vf.units))
       + submitPair('submitVestingForm', 'cancelVestingForm', vf.mode === 'edit' ? 'Save changes' : 'Add vesting', vf.mode === 'edit', 'btn-row btn-row--sm')
       + '</div>'
-      + '<table class="table"><thead><tr>'
-      + '<th class="th wide">Vest date</th><th class="th wide">Grant</th><th class="th wide right">Units</th>'
-      + '<th class="th wide right">Value</th><th class="th wide right"></th>'
-      + '</tr></thead>'
-      + v.vestingRows.map(function (r) {
-        return '<tr class="row">'
-          + '<td class="td-x">' + esc(r.date) + '</td>'
-          + '<td class="td-x">' + esc(r.grant) + '</td>'
-          + '<td class="td-x num">' + esc(r.unitsDisplay) + '</td>'
-          + '<td class="td-x num">' + esc(r.valueDisplay) + '</td>'
-          + rowActions('editVesting', 'deleteVesting', r.index, 'td-x')
-          + '</tr>';
-      }).join('')
-      + '</table>');
+      + dataTable({
+        columns: [
+          { label: 'Vest date', cls: 'wide' }, { label: 'Grant', cls: 'wide' }, { label: 'Units', cls: 'wide right' },
+          { label: 'Value', cls: 'wide right' }, { label: '', cls: 'wide right' },
+        ],
+        rows: v.vestingRows,
+        cells: function (r) {
+          return '<td class="td-x">' + esc(r.date) + '</td>'
+            + '<td class="td-x">' + esc(r.grant) + '</td>'
+            + '<td class="td-x num">' + esc(r.unitsDisplay) + '</td>'
+            + '<td class="td-x num">' + esc(r.valueDisplay) + '</td>';
+        },
+        rowActions: { editAct: 'editVesting', deleteAct: 'deleteVesting', tdClass: 'td-x' },
+      }));
 
     return '<h2 class="page-title page-title--sub">Stocks</h2>'
       + '<p class="hint mb-16">RSU grants &amp; ESPP. All values in USD, shown apart from your EGP totals.</p>'
-      + '<div class="tabs tabs--teal">'
-      + '<div class="' + cls('tab', !manage ? 'active' : '') + '" data-act="stockTabOverview">Overview</div>'
-      + '<div class="' + cls('tab', manage ? 'active' : '') + '" data-act="stockTabManage">Manage</div>'
-      + '</div>'
+      + tabBar('stock', manage, true)
       + overview + manageBody;
   }
 
   function viewProvidentFund(v) {
     var manage = state.pfTab === 'manage';
     return '<h2 class="page-title page-title--mid">Provident Fund</h2>'
-      + '<div class="tabs">'
-      + '<div class="' + cls('tab', !manage ? 'active' : '') + '" data-act="pfTabOverview">Overview</div>'
-      + '<div class="' + cls('tab', manage ? 'active' : '') + '" data-act="pfTabManage">Manage</div>'
-      + '</div>'
+      + tabBar('pf', manage)
       + '<div class="stat-grid">'
-      + '<div class="stat c-purple"><div class="stat-label">Balance</div><div class="stat-value">' + esc(v.pfBalanceDisplay) + '</div></div>'
-      + '<div class="stat c-cyan"><div class="stat-label">As of</div><div class="stat-value">' + esc(v.pfAsOfDisplay) + '</div></div>'
-      + '<div class="stat c-fuchsia"><div class="stat-label">Tag</div><div class="stat-value">' + esc(v.pfTagDisplay) + '</div></div>'
+      + statCard('Balance', esc(v.pfBalanceDisplay), 'c-purple')
+      + statCard('As of', esc(v.pfAsOfDisplay), 'c-cyan')
+      + statCard('Tag', esc(v.pfTagDisplay), 'c-fuchsia')
       + '</div>'
       + when(manage, '<div class="form-grid pf-form">'
         + field('New balance (EGP)', numInput('pfBalance', state.pfForm.balance))
@@ -1942,24 +1971,24 @@
       + '<button class="btn-export" data-act="exportLedgerCsv">Export CSV</button></div>'
       + '<p class="ledger-note">Auto-generated from Transactions — add or edit entries on the Transactions page.</p>'
       + '<div class="stat-grid">'
-      + '<div class="stat c-purple"><div class="stat-label">Current balance</div><div class="stat-value">' + esc(v.ledgerCurrentBalanceDisplay) + '</div></div>'
-      + '<div class="stat c-cyan"><div class="stat-label">As of</div><div class="stat-value">' + esc(v.ledgerLastDateDisplay) + '</div></div>'
-      + '<div class="stat c-fuchsia"><div class="stat-label">Owner</div><div class="stat-value">' + esc(v.ledgerOwnerDisplay) + '</div></div>'
+      + statCard('Current balance', esc(v.ledgerCurrentBalanceDisplay), 'c-purple')
+      + statCard('As of', esc(v.ledgerLastDateDisplay), 'c-cyan')
+      + statCard('Owner', esc(v.ledgerOwnerDisplay), 'c-fuchsia')
       + '</div>'
-      + '<table class="table"><thead><tr>'
-      + '<th class="th">Date</th><th class="th">Description</th><th class="th">Type</th>'
-      + '<th class="th right">Amount</th><th class="th right">Balance</th>'
-      + '</tr></thead>'
-      + v.ledgerRows.map(function (r) {
-        return '<tr class="row">'
-          + '<td class="td">' + esc(r.date) + '</td>'
-          + '<td class="td">' + esc(r.description) + '</td>'
-          + '<td class="td bold ' + r.typeClass + '">' + esc(r.type) + '</td>'
-          + '<td class="td num">' + esc(r.amountDisplay) + '</td>'
-          + '<td class="td num bold">' + esc(r.balanceDisplay) + '</td>'
-          + '</tr>';
-      }).join('')
-      + '</table>';
+      + dataTable({
+        columns: [
+          { label: 'Date' }, { label: 'Description' }, { label: 'Type' },
+          { label: 'Amount', cls: 'right' }, { label: 'Balance', cls: 'right' },
+        ],
+        rows: v.ledgerRows,
+        cells: function (r) {
+          return '<td class="td">' + esc(r.date) + '</td>'
+            + '<td class="td">' + esc(r.description) + '</td>'
+            + '<td class="td bold ' + r.typeClass + '">' + esc(r.type) + '</td>'
+            + '<td class="td num">' + esc(r.amountDisplay) + '</td>'
+            + '<td class="td num bold">' + esc(r.balanceDisplay) + '</td>';
+        },
+      });
   }
 
   function viewScreen(v) {
