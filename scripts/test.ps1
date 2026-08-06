@@ -8,8 +8,6 @@
 # thing allowed to rewrite that file. Review the diff before committing it; a baseline
 # captured after a change certifies the change.
 #
-# References serve.ps1 at the repo root — Milestone 2 of docs/plan.md moves it into
-# scripts/ and this path updates then.
 
 param([switch]$Update)
 
@@ -118,7 +116,7 @@ function Main {
   $repoRoot = Split-Path -Parent $PSScriptRoot
   $testDir = Join-Path $repoRoot 'test'
   $goldenPath = Join-Path $testDir 'golden.json'
-  $serveScript = Join-Path $repoRoot 'serve.ps1'
+  $serveScript = Join-Path $PSScriptRoot 'serve.ps1'
 
   if (-not (Test-Path -LiteralPath $serveScript)) {
     Write-Host "Cannot find serve.ps1 at $serveScript" -ForegroundColor Red

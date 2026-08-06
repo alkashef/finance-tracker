@@ -749,7 +749,7 @@
     v.stockScenarioPriceDisplay = scenario.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     v.scenarioSliderMin = SCENARIO_MIN;
     v.scenarioSliderMax = SCENARIO_MAX;
-    /* Kept for the slider's targeted (non-rerender) update while dragging. */
+    // Read via lastVm in updateScenarioReadouts(); do not delete as unused.
     v.scenarioInputs = { heldQty: heldQty, stockCash: stockCash, unvestedUnits: unvestedUnits };
 
     v.hasStocks = s.stockHoldings.length > 0 || s.stockVesting.length > 0;
@@ -970,7 +970,7 @@
         + '</div>')
 
       + '<div class="nav-spacer"></div>'
-      + '<div class="sb-about">' + navItem('Plan', 'goPlan', v.activeSheet === 'plan') + '</div>'
+      + '<div class="sb-footer-nav">' + navItem('Plan', 'goPlan', v.activeSheet === 'plan') + '</div>'
       + '<div class="sb-conn">'
       + (v.connected
         ? '<div class="sb-status">Connected</div>'

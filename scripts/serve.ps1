@@ -1,6 +1,6 @@
 # Minimal static file server for local use — no Node, no Python, no install.
 #
-#   powershell -ExecutionPolicy Bypass -File serve.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts/serve.ps1
 #
 # Then open http://localhost:8723/ and press Ctrl+C here to stop.
 #
@@ -10,7 +10,7 @@
 
 param([int]$Port = 8723)
 
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $prefix = "http://localhost:$Port/"
 
 $mime = @{
@@ -31,7 +31,7 @@ try {
   $listener.Start()
 } catch {
   Write-Host "Could not listen on $prefix - $($_.Exception.Message)" -ForegroundColor Red
-  Write-Host "Another program may already be using port $Port. Try: serve.ps1 -Port 8080"
+  Write-Host "Another program may already be using port $Port. Try: scripts/serve.ps1 -Port 8080"
   exit 1
 }
 

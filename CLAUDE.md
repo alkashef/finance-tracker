@@ -25,12 +25,11 @@ and anything else that writes to git history. Work on `main` unless told otherwi
 - `styles.css` — all styling, as ordinary CSS classes.
 - `app.js` — state, Sheets/OAuth calls, view model, screen views, render loop,
   handlers. One classic script in an IIFE.
-- `serve.ps1` — no-dependency local static server (`npx serve .` also works).
+- `scripts/serve.ps1` — no-dependency local static server (`npx serve .` also works).
 - `scripts/test.ps1` — the automated runner: serves the repo on a free port, drives
   every `test/*.html` harness through headless Edge for every scenario, prints one
   pass/fail summary, exits 0/1. `-Update` recaptures `test/golden.json`; nothing else
-  may touch it. References `serve.ps1` at the repo root until Milestone 2 of
-  `docs/plan.md` moves it into `scripts/`.
+  may touch it.
 - `test/smoke.html` — drives every screen against a stubbed Sheets API, checks the
   behaviours the render loop restores by hand (focus, caret, scroll, controlled
   inputs) and that no data gets invented.
@@ -102,7 +101,7 @@ before committing it, since a baseline captured after a change certifies the cha
 not that nothing changed.
 
 To drive a harness by hand: serve the repo (`npx serve . -l 8723`, or `powershell
--ExecutionPolicy Bypass -File serve.ps1`) and open
+-ExecutionPolicy Bypass -File scripts/serve.ps1`) and open
 <http://localhost:8723/test/smoke.html>. It stubs the Sheets API and OAuth, drives
 every screen, and reports pass/fail in the page — no network or Google account needed.
 `?scenario=empty` checks the empty-Sheet path, `?env=1` the `config/.env` prefill path.

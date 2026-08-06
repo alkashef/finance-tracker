@@ -36,10 +36,10 @@ npx serve . -l 8723
 > Close it and open a new one. To check: `node --version` should print something like
 > `v24.19.0`.
 
-**Option B — `serve.ps1` (no Node needed)**
+**Option B — `scripts/serve.ps1` (no Node needed)**
 
 ```console
-powershell -ExecutionPolicy Bypass -File serve.ps1
+powershell -ExecutionPolicy Bypass -File scripts/serve.ps1
 ```
 
 A ~60-line PowerShell static server included in this repo. Same result, zero

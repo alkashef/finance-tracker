@@ -126,7 +126,7 @@ a:hover { color: #6d28d9; }
 
 .nav-spacer { flex: 1; }
 
-.sb-about {
+.sb-footer-nav {
   border-top: 1px solid #e2e4e8;
   padding-top: 12px;
   margin-top: 4px;
@@ -1254,48 +1254,6 @@ a.sb-btn {
 
 /* ----------------------------------------------------------- about/plan --- */
 
-.about-intro {
-  font-size: 13px;
-  color: #6b7280;
-  line-height: 1.5;
-  margin: 0 0 24px 0;
-  max-width: 720px;
-}
-
-.about-list {
-  max-width: 720px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.about-h {
-  font-size: 15px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.about-p {
-  font-size: 13px;
-  color: #374151;
-  line-height: 1.6;
-  margin: 0 0 8px 0;
-}
-
-.about-ul {
-  font-size: 13px;
-  color: #374151;
-  line-height: 1.7;
-  margin: 0;
-  padding-left: 20px;
-}
-
-.about-note {
-  font-size: 12px;
-  color: #9aa0a8;
-  line-height: 1.6;
-  margin: 8px 0 0 0;
-}
 
 .plan-group { margin-bottom: 26px; }
 
@@ -1360,6 +1318,4 @@ a.sb-btn {
 .mb-16 { margin-bottom: 16px; }
 .mb-18 { margin-bottom: 18px; }
 .mb-20 { margin-bottom: 20px; }
-.mb-24 { margin-bottom: 24px; }
 .mb-32 { margin-bottom: 32px; }
-.mb-0 { margin-bottom: 0; }
