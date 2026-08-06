@@ -1,0 +1,11 @@
+/* AK47 Finance Tracker — margin-bottom helpers. Loads last so a `.mb-*` on
+   an element always wins over that component's own margin — see
+   index.html for the load-bearing tag order. */
+
+/* ---------------------------------------------------------- utilities --- */
+
+.mb-14 { margin-bottom: 14px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-18 { margin-bottom: 18px; }
+.mb-20 { margin-bottom: 20px; }
+.mb-32 { margin-bottom: 32px; }

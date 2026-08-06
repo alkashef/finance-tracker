@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Finance Tracker — screenshot capture</title>
+<!-- Cascade order is load-bearing: base defines tokens components/screens consume,
+     utilities loads last so a `.mb-*` always wins over a component's own margin. -->
+<link rel="stylesheet" href="../src/css/base.css">
+<link rel="stylesheet" href="../src/css/components.css">
+<link rel="stylesheet" href="../src/css/screens.css">
+<link rel="stylesheet" href="../src/css/utilities.css">
+<script src="fixtures.js"></script>
+<script src="harness.js"></script>
+<script>
+/* Drives the app to exactly one named screen and then stops — no capture, no compare.
+   scripts/test.ps1 loads this once per (screen, scenario) with Edge's `--screenshot`
+   flag at a pinned `--window-size`, hashes the PNG, and compares it to the committed
+   baseline test/screenshots.json. This is Milestone 7's net for the one thing the
+   golden DOM snapshot can't see: the HTML is unchanged, only the rendered *result*
+   moves when a CSS token or the base/components/screens/utilities split gets a value
+   wrong. `?update=1` has no meaning here; -Update rewrites screenshots.json from the
+   PNG hashes the runner itself computes.
+
+   Run:  http://localhost:8723/test/screenshots.html?land=dashboard
+        &scenario=empty selects the empty-Sheet fixture. */
+
+var SCENARIO = new URLSearchParams(location.search).get('scenario') || 'populated';
+var LAND = new URLSearchParams(location.search).get('land') || '';
+var DATA = SCENARIO === 'empty' ? EMPTY : POPULATED;
+
+installHarness(DATA);
+</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main" id="main"></div>
+</div>
+
+<script type="module" src="../src/app.js"></script>
+<script>
+/* Same screen list and click sequence as golden.html's `steps`, restated here as
+   incremental {name, run} entries so this harness can stop as soon as it reaches
+   the one named by `?land=`, instead of walking every screen every time. */
+
+function el(sel) { return document.querySelector(sel); }
+function click(sel) { var e = el(sel); if (e) e.click(); return !!e; }
+function typeInto(sel, value) {
+  var e = el(sel);
+  if (!e) return;
+  e.value = value;
+  e.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+var NAV_STEPS = [
+  { name: '__connect', run: function () {
+    typeInto('[data-f="clientId"]', 'stub.apps.googleusercontent.com');
+    click('[data-act="saveAndConnect"]');
+    typeInto('[data-f="spreadsheetId"]', 'stub-sheet-id');
+    click('[data-act="saveAndConnect"]');
+  } },
+  { name: 'settings', run: function () { click('[data-act="openSettings"]'); } },
+  { name: 'dashboard', run: function () { click('[data-act="closeSettings"]'); } },
+  { name: 'dashboard-expanded', run: function () {
+    click('[data-act="toggleDashMaturity"]');
+    click('[data-act="toggleRecentTx"]');
+  } },
+  { name: 'transactions-overview', run: function () { click('[data-act="goTransactions"]'); } },
+  { name: 'transactions-manage', run: function () { click('[data-act="txTabManage"]'); } },
+  { name: 'gold-overview', run: function () { click('[data-act="goGold"]'); } },
+  { name: 'gold-manage', run: function () { click('[data-act="goldTabManage"]'); } },
+  { name: 'certs-overview', run: function () { click('[data-act="goCerts"]'); } },
+  { name: 'certs-manage', run: function () { click('[data-act="certsTabManage"]'); } },
+  { name: 'stocks-overview', run: function () { click('[data-act="goStocks"]'); } },
+  { name: 'stocks-manage', run: function () { click('[data-act="stockTabManage"]'); } },
+  { name: 'pf-overview', run: function () { click('[data-act="goProvidentFund"]'); } },
+  { name: 'pf-manage', run: function () { click('[data-act="pfTabManage"]'); } },
+  { name: 'accounts', run: function () { click('[data-act="goAccounts"]'); } },
+  { name: 'types', run: function () { click('[data-act="goTypes"]'); } },
+  { name: 'tags', run: function () { click('[data-act="goTags"]'); } },
+  { name: 'plan', run: function () { click('[data-act="goPlan"]'); } },
+  { name: 'account-ledger', run: function () { click('[data-act="selectAccount"][data-i="0"]'); } }
+];
+
+/* Status goes in the title, not a visible element — anything painted on screen
+   would land inside the very screenshot this harness exists to keep clean. */
+var i = 0;
+function next() {
+  if (i >= NAV_STEPS.length) { report('no such screen: ' + LAND); return; }
+  var step = NAV_STEPS[i++];
+  try { step.run(); } catch (e) { report('step "' + step.name + '" threw: ' + e.message); return; }
+  if (step.name === LAND) { report('landed on ' + LAND + ' (scenario: ' + SCENARIO + ')'); return; }
+  setTimeout(next, 30);
+}
+function report(text) { document.title = 'screenshots: ' + text; }
+
+window.addEventListener('load', function () { setTimeout(next, 30); });
+</script>
+</body>
+</html>

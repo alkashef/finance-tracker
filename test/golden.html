@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <title>Finance Tracker — golden DOM snapshot</title>
-<link rel="stylesheet" href="../styles.css">
+<!-- Cascade order is load-bearing: base defines tokens components/screens consume,
+     utilities loads last so a `.mb-*` always wins over a component's own margin. -->
+<link rel="stylesheet" href="../src/css/base.css">
+<link rel="stylesheet" href="../src/css/components.css">
+<link rel="stylesheet" href="../src/css/screens.css">
+<link rel="stylesheet" href="../src/css/utilities.css">
 <style>
   #report {
     position: fixed; inset: 0; z-index: 9999; overflow: auto; margin: 0;
@@ -23,7 +28,11 @@
    either compares the rendered #sidebar/#main HTML to test/golden.json, or — with
    ?update=1 — emits the freshly captured HTML for scripts/test.ps1 to write there.
    Along the way it also runs the CSS coverage check: every class name touched by the
-   walk vs. every class selector styles.css defines.
+   walk vs. every class selector defined across src/css/*.css. Since Milestone 7 it
+   also checks the things a DOM-only snapshot is blind to — the token split doesn't
+   change any HTML, only the rendered result: rule-count conservation, a sweep for
+   literals that should have become var(...), a handful of computed-style spot checks,
+   and one cascade-order assertion that utilities.css still wins last.
 
    Run:  serve the repo, then open
          http://localhost:8723/test/golden.html               (compare, populated)
@@ -32,7 +41,7 @@
          committed. scripts/test.ps1 -Update drives this; don't hand-edit golden.json. */
 
 /* window.fetch is about to be replaced with the Sheets-API stub below. Keep a
-   handle to the real one for this harness's own requests (styles.css, golden.json) —
+   handle to the real one for this harness's own requests (src/css/*.css, golden.json) —
    those must hit the actual static server, not the stub. */
 var nativeFetch = window.fetch.bind(window);
 
@@ -57,6 +66,27 @@ var log = [];
 var failures = 0;
 var results = {};
 var usedClasses = {};
+var cssTexts = [];
+var CSS_FILES = ['../src/css/base.css', '../src/css/components.css', '../src/css/screens.css', '../src/css/utilities.css'];
+
+/* Renders `className` on a throwaway element to read a rule's computed value
+   independent of which screen (or scenario) happens to be on screen right now —
+   the CSS split doesn't touch app.js, so these checks don't need real fixture data. */
+function computedFor(className, prop) {
+  var el = document.createElement('div');
+  el.className = className;
+  document.body.appendChild(el);
+  var val = getComputedStyle(el)[prop];
+  document.body.removeChild(el);
+  return val;
+}
+function checkComputed(name, className, prop, expected) {
+  check(name, computedFor(className, prop), expected);
+}
+function hexToRgb(hex) {
+  var n = parseInt(hex.slice(1), 16);
+  return 'rgb(' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(', ') + ')';
+}
 
 function check(name, actual, expected) {
   var ok = String(actual) === String(expected);
@@ -175,7 +205,10 @@ var steps = [
   /* ------------------------------------------------------- CSS coverage --- */
   function () {
     section('CSS coverage (scenario: ' + SCENARIO + ')');
-    return nativeFetch('../styles.css').then(function (res) { return res.text(); }).then(function (css) {
+    return Promise.all(CSS_FILES.map(function (f) {
+      return nativeFetch(f).then(function (res) { return res.text(); });
+    })).then(function (texts) {
+      var css = texts.join('\n');
       var noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
       var classRe = /\.(-?[_a-zA-Z][_a-zA-Z0-9-]*)/g;
       var defined = {};
@@ -187,9 +220,71 @@ var steps = [
 
       check('no undefined classes used in DOM', undefinedClasses.length, 0);
       if (undefinedClasses.length) note('undefined: ' + undefinedClasses.join(', '));
-      note('unused selectors in styles.css this scenario: ' + unusedClasses.length
+      note('unused selectors across src/css/*.css this scenario: ' + unusedClasses.length
         + (unusedClasses.length ? ' — ' + unusedClasses.join(', ') : ''));
+
+      cssTexts = texts;
     });
+  },
+
+  /* ------------------------------------------------- CSS tokens & split --- */
+  function () {
+    section('CSS tokens & split (scenario: ' + SCENARIO + ')');
+    var combined = cssTexts.join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+
+    /* Rule-count conservation: 247 rules existed pre-Milestone-7 (docs/plan.md); the
+       only rule this milestone adds is the new :root token block, so the four files
+       together must sum to exactly one more than that. A whole section dropped
+       between files would show up here even though no single file looks wrong. */
+    var ruleCount = (combined.match(/\{/g) || []).length;
+    check('rule count across base+components+screens+utilities (247 + 1 :root)', ruleCount, 248);
+
+    /* Token sweep: base.css is the one place these literals are allowed to appear —
+       that's the token definition itself. Anywhere else is a literal that should have
+       become var(...) and didn't. */
+    var nonBase = cssTexts.slice(1).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+    var tokenLiterals = [
+      '#7c3aed', '#6d28d9', '#0d9488', '#0f766e', '#d97706', '#2563eb', '#e2e4e8',
+      'font-size: 11px', 'font-size: 12px', 'font-size: 13px', 'font-size: 14px',
+      'border-radius: 6px', 'border-radius: 8px', 'border-radius: 10px'
+    ];
+    var survivors = tokenLiterals.filter(function (lit) { return nonBase.indexOf(lit) !== -1; });
+    check('no tokenized literal survives outside base.css', survivors.length, 0);
+    if (survivors.length) note('survived: ' + survivors.join(', '));
+  },
+
+  /* --------------------------------------------- computed-style spot checks --- */
+  function () {
+    section('CSS computed-style spot checks (scenario: ' + SCENARIO + ')');
+    checkComputed('font-size sm token (11px) — .lbl.sm', 'lbl sm', 'fontSize', '11px');
+    checkComputed('font-size base token (12px) — .stat-label', 'stat-label', 'fontSize', '12px');
+    checkComputed('font-size md token (13px) — .panel-title', 'panel-title', 'fontSize', '13px');
+    checkComputed('font-size lg token (14px) — .sec-recent', 'sec-recent', 'fontSize', '14px');
+    checkComputed('radius sm token (6px) — .btn-p', 'btn-p', 'borderRadius', '6px');
+    checkComputed('radius md token (8px) — .search-input', 'search-input', 'borderRadius', '8px');
+    checkComputed('radius lg token (10px) — .cc', 'cc', 'borderRadius', '10px');
+    checkComputed('border-grey token — .search-input border', 'search-input', 'borderTopColor', hexToRgb('#e2e4e8'));
+    checkComputed('#fff panel (untokenized literal) — .cc background', 'cc', 'backgroundColor', 'rgb(255, 255, 255)');
+    checkComputed('brand purple — .btn-p background', 'btn-p', 'backgroundColor', hexToRgb('#7c3aed'));
+    checkComputed('brand purple-dark — .pill--done color', 'pill--done', 'color', hexToRgb('#6d28d9'));
+    checkComputed('brand teal — .btn-p--teal background', 'btn-p--teal', 'backgroundColor', hexToRgb('#0d9488'));
+    checkComputed('brand teal-dark — .pill-source--rsu color', 'pill-source--rsu', 'color', hexToRgb('#0f766e'));
+    checkComputed('brand amber — .btn-p--gold background', 'btn-p--gold', 'backgroundColor', hexToRgb('#d97706'));
+    checkComputed('brand blue — .btn-p--blue background', 'btn-p--blue', 'backgroundColor', hexToRgb('#2563eb'));
+  },
+
+  /* --------------------------------------------------------- cascade order --- */
+  function () {
+    section('CSS cascade order (scenario: ' + SCENARIO + ')');
+    /* .stat-grid (components.css) sets margin-bottom: 24px on its own; .mb-20
+       (utilities.css, real combo: certs Overview's stat grid) sets 20px. Same
+       specificity, so whichever file loads last wins — utilities.css must, or this
+       regresses silently the day someone reorders the <link> tags. */
+    checkComputed('utilities.css beats components.css — .stat-grid.mb-20', 'stat-grid mb-20', 'marginBottom', '20px');
+    /* .hint sets its bottom margin via the `margin` shorthand (18px); .mb-16 (real
+       combo: Stocks' intro hint) sets margin-bottom directly. Same rule: last file
+       wins regardless of shorthand vs. longhand on the losing side. */
+    checkComputed('utilities.css beats components.css — .hint.mb-16 (shorthand)', 'hint mb-16', 'marginBottom', '16px');
   },
 
   /* ------------------------------------------------------ compare/update --- */

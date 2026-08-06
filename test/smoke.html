@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <title>Finance Tracker — smoke test</title>
-<link rel="stylesheet" href="../styles.css">
+<!-- Cascade order is load-bearing: base defines tokens components/screens consume,
+     utilities loads last so a `.mb-*` always wins over a component's own margin. -->
+<link rel="stylesheet" href="../src/css/base.css">
+<link rel="stylesheet" href="../src/css/components.css">
+<link rel="stylesheet" href="../src/css/screens.css">
+<link rel="stylesheet" href="../src/css/utilities.css">
 <style>
   #report {
     position: fixed; inset: 0; z-index: 9999; overflow: auto; margin: 0;

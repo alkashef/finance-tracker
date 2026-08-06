@@ -118,7 +118,7 @@ it, and that is where the ability to bisect is lost.
 | 4 | Split `buildViewModel()` | ✅ done | **Opus 5** | on |
 | 5 | Shared view helpers | ✅ done | Sonnet 5 | on |
 | 6 | `src/js/` — ES modules | ✅ done | Sonnet 5 | on |
-| 7 | `src/css/` — tokens and split | ⬜ | Sonnet 5 | on |
+| 7 | `src/css/` — tokens and split | ✅ done | Sonnet 5 | on |
 | 8 | Re-verify and document | ⬜ | Sonnet 5 → Opus 5 | on |
 
 Switch model with `/model`; Fast mode (`/fast`) keeps Opus's capability with faster
@@ -512,44 +512,84 @@ now nameable by its file path, not just its function name.
 
 ## Milestone 7 — `src/css/`: tokens and split
 
-1. ⬜ Introduce `:root` custom properties for the repeated literals — brand colours, the
+1. ✅ Introduce `:root` custom properties for the repeated literals — brand colours, the
    four font sizes, the three border radii, the border grey. **This is what kills the
-   CSS duplication; splitting alone does not.**
-2. ⬜ Split into cascade-ordered files:
+   CSS duplication; splitting alone does not.** — 14 tokens in `base.css`: 6 brand
+   colours (`--color-purple`/`-dark`, `--color-teal`/`-dark`, `--color-amber`,
+   `--color-blue`), `--color-border`, 4 font sizes (`--font-size-sm/base/md/lg` = 11–14px)
+   and 3 radii (`--radius-sm/md/lg` = 6/8/10px) — exactly the set the milestone named,
+   not the whole grey/text-colour palette. 153 call sites now read `var(...)`; `#fff`
+   backgrounds and the untokenized 7px/12px/20px radii were deliberately left as
+   literals — they weren't the repeated ones the diagnosis named.
+2. ✅ Split into cascade-ordered files — 248 rules total (247 pre-Milestone-7 + the one
+   new `:root` block), none moved, added, or dropped:
 
-   | File | Contents |
-   | --- | --- |
-   | `src/css/base.css` | reset, tokens, `body`, links, layout |
-   | `src/css/components.css` | buttons, inputs, tables, tabs, pills, stat cards, chevrons |
-   | `src/css/screens.css` | dashboard, stocks, certificates, plan, ledger |
-   | `src/css/utilities.css` | the `.mb-*` helpers — last, so they win |
+   | File | Rules | Contents |
+   | --- | --- | --- |
+   | `src/css/base.css` | 25 | reset, tokens, `body`, links, layout, **sidebar** |
+   | `src/css/components.css` | 119 | buttons, inputs, tables, tabs, pills, stat cards, chevrons, **page furniture, value colours** |
+   | `src/css/screens.css` | 99 | dashboard, stocks, certificates, plan, ledger, **settings** |
+   | `src/css/utilities.css` | 5 | the `.mb-*` helpers — last, so they win |
 
-3. ⬜ Four `<link>` tags in `index.html` in that order, with a comment that the order
-   matters. Same four in `test/smoke.html` — it loads the real stylesheet, so a missed
-   tag silently unstyles the harness.
+   Bolded entries are judgment calls beyond the milestone's own illustrative list:
+   sidebar is persistent app chrome, not a screen, so it went to `base.css` next to
+   `.app`/`.main`; page furniture (titles/hints/banners) and the gain/loss/flag value
+   colours are reused across every screen, so they read as components, not screen
+   styling; settings has no reusable classes anywhere else, so it's screen-specific like
+   the five named domains even though the table didn't spell it out.
+3. ✅ Four `<link>` tags in `index.html` in that order, with a comment that the order
+   matters. Same four in `test/smoke.html` — and, following the same reasoning
+   Milestone 6 applied to the module `<script>` tag, `test/golden.html` too, since it
+   both renders through the real stylesheet and fetches it by name for the CSS coverage
+   check below.
 
 **Tests** — the golden snapshot is blind here: the HTML is unchanged and only the
 rendered result moves. CSS needs its own checks.
 
-- ⬜ **Computed-style assertions.** One representative element per token — a 13px label,
-  a 12px caption, a 10px-radius card, a `#fff` panel, each brand colour — assert
-  `getComputedStyle` returns the same value before and after. This names the broken
-  token instead of just flagging a changed page.
-- ⬜ **Screenshot hashes, every screen, fixed viewport.** Identical DOM at a pinned
-  viewport renders byte-identically, so hashing each PNG is a reliable "something moved"
-  signal with no image-diff dependency. It says *that* something changed; the
-  computed-style assertions say *what*.
-- ⬜ **Cascade order.** Assert a known override still wins — a `.mb-*` utility beating a
-  component's own margin. This is the failure mode the split introduces and the one
-  nothing else detects.
-- ⬜ **Rule-count conservation.** Rules across the four files sum to 257 minus Milestone
-  2's deletions. Blunt, but it catches a whole section dropped between files.
-- ⬜ **Token sweep.** Grep the four files for the literals that were supposed to be
-  replaced — any survivor is a miss, or a deliberate exception that deserves a comment.
+- ✅ **Computed-style assertions.** One representative element per token — `.lbl.sm`
+  (11px), `.stat-label` (12px), `.panel-title` (13px), `.sec-recent` (14px), `.btn-p`
+  (6px radius), `.search-input` (8px radius + border grey), `.cc` (10px radius + the
+  untokenized `#fff`), and one background/color check per brand colour — asserted via
+  `getComputedStyle` on a throwaway element, independent of which screen or scenario is
+  on screen. All 15 pass in both scenarios. — added to `test/golden.html`.
+- ✅ **Screenshot hashes, every screen, fixed viewport.** New `test/screenshots.html`
+  drives the app to one named screen and stops; `scripts/test.ps1` screenshots it with
+  Edge at a pinned `1440×900` and hashes the PNG against a committed
+  `test/screenshots.json` (35 screen/scenario combinations — every `capture()` name in
+  `golden.html`, `account-ledger` only for `populated`). **Proven to matter in practice,
+  not just in theory:** the first run found headless Chromium's software rasterizer is
+  *not* perfectly pixel-deterministic — one screen's screenshot flaked between two
+  otherwise-identical captures in the same run, a 28-pixel antialiasing difference on a
+  1–2px border (confirmed with `System.Drawing` pixel diff; `golden.html`'s byte-identical
+  DOM check for the same screen passed throughout, so this was never a real regression).
+  Mitigated two ways: `--disable-lcd-text --disable-font-subpixel-positioning
+  --font-render-hinting=none` on the Edge invocation, and a 3-attempt retry
+  (`Test-ScreenshotMatch`) that accepts a match on any attempt — a real visual
+  regression fails every attempt, transient rasterizer jitter usually clears within two.
+- ✅ **Cascade order.** Two real combos already in the codebase, not synthesized ones:
+  `.stat-grid.mb-20` (certs Overview — `components.css`'s 24px loses to `utilities.css`'s
+  20px) and `.hint.mb-16` (Stocks' intro hint — utilities beats even a `margin` shorthand
+  on the losing side). Both assert `utilities.css` wins because it loads last.
+- ✅ **Rule-count conservation.** 248 = 247 (post-Milestone-2, confirmed by counting `{`
+  in the pre-split file) + the one new `:root` rule. Checked by summing `{` across all
+  four fetched files in `golden.html`, not assumed.
+- ✅ **Token sweep.** `golden.html` greps `components.css` + `screens.css` + `utilities.css`
+  (everywhere but `base.css`, where the definitions themselves legitimately live) for
+  each literal the tokens replaced. Zero survivors.
 
 **Run it with:** Sonnet 5, thinking on. The split is pure file movement, but deciding
 whether a given `13px` is *the same* 13px as the others is real judgment — a mechanical
 find-and-replace is how a font size ends up coupled to an unrelated one.
+
+**What it cost:** `styles.css` (1,321 lines, 247 rules) became four files under
+`src/css/` totalling 1,361 lines and 248 rules — the growth is entirely the four
+file-header comments plus the 14-declaration `:root` block, not duplication; a byte-for-byte
+reconstruction check confirmed the split itself lost or duplicated nothing. `golden.json`
+and `crud.json` came back byte-identical (no `-Update` diff), which is the real proof nothing
+rendered differently. The unplanned cost was the screenshot-hash test itself: it does not
+run cheaply (~35 Edge relaunches per pass, ~70 on `-Update`) and, as detailed above, needed
+a retry mechanism to stop a pixel-level rasterizer flake from reading as a false failure —
+worth knowing before leaning on it again in Milestone 8's whole-run comparison.
 
 ---
 

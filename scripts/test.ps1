@@ -4,10 +4,10 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\test.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -Update
 #
-# -Update (re)captures test/golden.json (rendered DOM) and test/crud.json (Sheets write
-# payloads) from the current app.js/styles.css — the only thing allowed to rewrite those
-# files. Review the diff before committing it; a baseline captured after a change
-# certifies the change.
+# -Update (re)captures test/golden.json (rendered DOM), test/crud.json (Sheets write
+# payloads) and test/screenshots.json (per-screen PNG hashes) from the current
+# app.js/src/css/*.css - the only thing allowed to rewrite those files. Review the
+# diff before committing it; a baseline captured after a change certifies the change.
 #
 
 param([switch]$Update)
@@ -72,6 +72,68 @@ function Invoke-Harness {
   return $null
 }
 
+# Milestone 7's net for the one thing golden.html's DOM snapshot can't see: the CSS
+# token/split change touches no HTML, only the rendered result. Same
+# Start-Process -RedirectStandardOutput discipline as Invoke-Harness - a pinned
+# --window-size is what makes the PNG (and so its hash) reproducible run to run.
+function Invoke-Screenshot {
+  param([string]$EdgePath, [string]$Url, [string]$Label, [string]$WorkDir)
+  $safe = ($Label -replace '[^a-zA-Z0-9]+', '_')
+  $userData = Join-Path $WorkDir ("shot_" + $safe + '_' + [guid]::NewGuid().ToString('N'))
+  $outFile = Join-Path $WorkDir ($safe + '.png')
+  $errFile = Join-Path $WorkDir ($safe + '.shot.err.log')
+  if (Test-Path -LiteralPath $outFile) { Remove-Item -LiteralPath $outFile -Force }
+  $edgeArgs = @(
+    '--headless=new', '--disable-gpu', '--no-sandbox',
+    '--virtual-time-budget=20000',
+    '--window-size=1440,900',
+    '--force-device-scale-factor=1',
+    '--disable-lcd-text', '--disable-font-subpixel-positioning', '--font-render-hinting=none',
+    "--user-data-dir=$userData",
+    "--screenshot=$outFile",
+    $Url
+  )
+  Start-Process -FilePath $EdgePath -ArgumentList $edgeArgs -Wait -NoNewWindow `
+    -RedirectStandardOutput (Join-Path $WorkDir ($safe + '.shot.out.log')) -RedirectStandardError $errFile
+  if (Test-Path -LiteralPath $outFile) { return $outFile }
+  return $null
+}
+
+# Headless Chromium's software rasterizer is not perfectly deterministic run to run -
+# a hairline border can antialias a pixel or two differently even with identical DOM
+# (confirmed by hand: golden.html's byte-identical HTML check passes every time this
+# flakes, and the pixel diff is a couple dozen pixels on a 1-2px-wide border, invisible
+# to the eye). Retrying is the standard mitigation for this class of visual-test flake:
+# a real regression mismatches every attempt, transient antialiasing jitter usually
+# clears within a couple of tries.
+function Test-ScreenshotMatch {
+  param([string]$EdgePath, [string]$Url, [string]$Label, [string]$WorkDir, [string]$Expected, [int]$Attempts = 3)
+  for ($try = 1; $try -le $Attempts; $try++) {
+    $png = Invoke-Screenshot -EdgePath $EdgePath -Url $Url -Label ($Label + '_try' + $try) -WorkDir $WorkDir
+    if ($png) {
+      $hash = (Get-FileHash -LiteralPath $png -Algorithm SHA256).Hash
+      if ($hash -eq $Expected) { return $true }
+    }
+  }
+  return $false
+}
+
+# The same 17 screens for both scenarios, plus account-ledger for populated only -
+# the empty fixture has no accounts to select one from (golden.html skips it too).
+function Get-ScreenshotTargets {
+  $screens = @(
+    'settings', 'dashboard', 'dashboard-expanded', 'transactions-overview', 'transactions-manage',
+    'gold-overview', 'gold-manage', 'certs-overview', 'certs-manage', 'stocks-overview', 'stocks-manage',
+    'pf-overview', 'pf-manage', 'accounts', 'types', 'tags', 'plan'
+  )
+  $targets = @()
+  foreach ($scenario in @('populated', 'empty')) {
+    foreach ($s in $screens) { $targets += [pscustomobject]@{ Scenario = $scenario; Screen = $s } }
+  }
+  $targets += [pscustomobject]@{ Scenario = 'populated'; Screen = 'account-ledger' }
+  return $targets
+}
+
 # Every harness (smoke.html, golden.html) renders the same #report format: an
 # "ALL CHECKS PASSED" / "N CHECK(S) FAILED" head line plus a JS-errors line.
 function Get-ReportResult {
@@ -118,6 +180,7 @@ function Main {
   $testDir = Join-Path $repoRoot 'test'
   $goldenPath = Join-Path $testDir 'golden.json'
   $crudPath = Join-Path $testDir 'crud.json'
+  $screenshotPath = Join-Path $testDir 'screenshots.json'
   $serveScript = Join-Path $PSScriptRoot 'serve.ps1'
 
   if (-not (Test-Path -LiteralPath $serveScript)) {
@@ -173,6 +236,28 @@ function Main {
         [System.IO.File]::WriteAllText($b.Path, $finalJson, (New-Object System.Text.UTF8Encoding($false)))
         Write-Host ("Wrote {0}" -f $b.Path) -ForegroundColor Green
       }
+
+      Write-Host 'Capturing screenshot baseline (this walks every screen twice)...' -ForegroundColor Yellow
+      $shotTargets = Get-ScreenshotTargets
+      $shotHashes = [ordered]@{ populated = [ordered]@{}; empty = [ordered]@{} }
+      $shotCaptureFailed = $false
+      foreach ($t in $shotTargets) {
+        $label = "shot-update-$($t.Scenario)-$($t.Screen)"
+        $url = "$base/test/screenshots.html?scenario=$($t.Scenario)&land=$($t.Screen)"
+        $png = Invoke-Screenshot -EdgePath $edge -Url $url -Label $label -WorkDir $work
+        if (-not $png) {
+          Write-Host ("  FAIL  {0}/{1} - no screenshot produced" -f $t.Scenario, $t.Screen) -ForegroundColor Red
+          $shotCaptureFailed = $true
+          continue
+        }
+        $shotHashes[$t.Scenario][$t.Screen] = (Get-FileHash -LiteralPath $png -Algorithm SHA256).Hash
+      }
+      if ($shotCaptureFailed) {
+        Write-Host 'Screenshot baseline capture failed for one or more screens.' -ForegroundColor Red
+        return 1
+      }
+      [System.IO.File]::WriteAllText($screenshotPath, (($shotHashes | ConvertTo-Json -Depth 5) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+      Write-Host ("Wrote {0}" -f $screenshotPath) -ForegroundColor Green
       Write-Host ''
     }
 
@@ -199,6 +284,34 @@ function Main {
         Write-Host $r.Report -ForegroundColor DarkGray
         Write-Host ''
       }
+    }
+
+    if (-not (Test-Path -LiteralPath $screenshotPath)) {
+      Write-Host ('{0,-4}  {1,-24} {2}' -f 'FAIL', 'screenshots', 'screenshots.json missing - run scripts/test.ps1 -Update first') -ForegroundColor Red
+      $allOk = $false
+    } else {
+      $shotBaseline = Get-Content -LiteralPath $screenshotPath -Raw | ConvertFrom-Json
+      $shotTargets = Get-ScreenshotTargets
+      $shotMismatches = @()
+      $shotMissing = @()
+      foreach ($t in $shotTargets) {
+        $label = "shot-verify-$($t.Scenario)-$($t.Screen)"
+        $url = "$base/test/screenshots.html?scenario=$($t.Scenario)&land=$($t.Screen)"
+        $scenarioBaseline = $shotBaseline.($t.Scenario)
+        $expected = if ($scenarioBaseline) { $scenarioBaseline.($t.Screen) } else { $null }
+        if (-not $expected) { $shotMissing += "$($t.Scenario)/$($t.Screen)"; continue }
+        $matched = Test-ScreenshotMatch -EdgePath $edge -Url $url -Label $label -WorkDir $work -Expected $expected
+        if (-not $matched) { $shotMismatches += "$($t.Scenario)/$($t.Screen)" }
+      }
+      $shotOk = ($shotMismatches.Count -eq 0 -and $shotMissing.Count -eq 0)
+      if (-not $shotOk) { $allOk = $false }
+      $shotStatus = if ($shotOk) { 'PASS' } else { 'FAIL' }
+      $shotColor = if ($shotOk) { 'Green' } else { 'Red' }
+      $shotSummary = if ($shotOk) { "$($shotTargets.Count)/$($shotTargets.Count) hashes match" }
+        else { "$($shotMismatches.Count) mismatch(es), $($shotMissing.Count) missing baseline" }
+      Write-Host ('{0,-4}  {1,-24} {2}' -f $shotStatus, 'screenshots', $shotSummary) -ForegroundColor $shotColor
+      if ($shotMismatches.Count) { Write-Host ('        mismatched: ' + ($shotMismatches -join ', ')) -ForegroundColor DarkGray }
+      if ($shotMissing.Count) { Write-Host ('        missing baseline: ' + ($shotMissing -join ', ')) -ForegroundColor DarkGray }
     }
 
     Write-Host ''
