@@ -224,6 +224,19 @@ var steps = [
   },
 
   function () {
+    section('sidebar sections default folded');
+    check('Saving section starts folded', !!el('.chev-saving.open'), false);
+    check('Spending section starts folded', !!el('.chev-spending.open'), false);
+    check('Settings section starts folded', !!el('.chev-settings.open'), false);
+    click('[data-act="toggleSavingNav"]');
+    click('[data-act="toggleSpendingNav"]');
+    click('[data-act="toggleAccountSettings"]');
+    check('Saving section opens on toggle', !!el('.chev-saving.open'), true);
+    check('Spending section opens on toggle', !!el('.chev-spending.open'), true);
+    check('Settings section opens on toggle', !!el('.chev-settings.open'), true);
+  },
+
+  function () {
     section('no invented data');
     var writtenSheets = window.__writes.map(function (w) { return w.sheet; });
     var unexpected = writtenSheets.filter(function (s) { return s === 'Bank A' || s === 'Savings B' || s === 'School Fund'; });

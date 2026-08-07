@@ -58,6 +58,11 @@ var NAV_STEPS = [
     click('[data-act="saveAndConnect"]');
     typeInto('[data-f="spreadsheetId"]', 'stub-sheet-id');
     click('[data-act="saveAndConnect"]');
+    /* Sections start folded (state.js); pin the sidebar fully-open so every
+       nav item below stays reachable — same fixed state golden.html uses. */
+    click('[data-act="toggleSavingNav"]');
+    click('[data-act="toggleSpendingNav"]');
+    click('[data-act="toggleAccountSettings"]');
   } },
   { name: 'settings', run: function () { click('[data-act="openSettings"]'); } },
   { name: 'dashboard', run: function () { click('[data-act="closeSettings"]'); } },

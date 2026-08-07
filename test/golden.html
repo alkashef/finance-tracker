@@ -173,6 +173,14 @@ var steps = [
     click('[data-act="saveAndConnect"]');
   },
 
+  function () {
+    /* Sections start folded (state.js); the walk below needs every nav item
+       reachable, so pin the sidebar to fully-open before any capture — same
+       fixed expand/collapse state the baseline has always been captured at. */
+    click('[data-act="toggleSavingNav"]');
+    click('[data-act="toggleSpendingNav"]');
+    click('[data-act="toggleAccountSettings"]');
+  },
   function () { section('screens'); click('[data-act="openSettings"]'); capture('settings'); click('[data-act="closeSettings"]'); },
   function () { capture('dashboard'); },
   function () {
